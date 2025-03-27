@@ -6,60 +6,66 @@
  */
 import { HTMLStencilElement, JSXBase } from "@stencil/core/internal";
 export namespace Components {
-    interface AppHome {
-    }
-    interface AppProfile {
-        "name": string;
-    }
     interface AppRoot {
+    }
+    interface SearchBar {
+    }
+    interface SearchResult {
+        "handleClick"?: () => void;
+        "resultId": string;
+        "resultSnippet": string;
+        "resultTitle": string;
     }
 }
 declare global {
-    interface HTMLAppHomeElement extends Components.AppHome, HTMLStencilElement {
-    }
-    var HTMLAppHomeElement: {
-        prototype: HTMLAppHomeElement;
-        new (): HTMLAppHomeElement;
-    };
-    interface HTMLAppProfileElement extends Components.AppProfile, HTMLStencilElement {
-    }
-    var HTMLAppProfileElement: {
-        prototype: HTMLAppProfileElement;
-        new (): HTMLAppProfileElement;
-    };
     interface HTMLAppRootElement extends Components.AppRoot, HTMLStencilElement {
     }
     var HTMLAppRootElement: {
         prototype: HTMLAppRootElement;
         new (): HTMLAppRootElement;
     };
+    interface HTMLSearchBarElement extends Components.SearchBar, HTMLStencilElement {
+    }
+    var HTMLSearchBarElement: {
+        prototype: HTMLSearchBarElement;
+        new (): HTMLSearchBarElement;
+    };
+    interface HTMLSearchResultElement extends Components.SearchResult, HTMLStencilElement {
+    }
+    var HTMLSearchResultElement: {
+        prototype: HTMLSearchResultElement;
+        new (): HTMLSearchResultElement;
+    };
     interface HTMLElementTagNameMap {
-        "app-home": HTMLAppHomeElement;
-        "app-profile": HTMLAppProfileElement;
         "app-root": HTMLAppRootElement;
+        "search-bar": HTMLSearchBarElement;
+        "search-result": HTMLSearchResultElement;
     }
 }
 declare namespace LocalJSX {
-    interface AppHome {
-    }
-    interface AppProfile {
-        "name"?: string;
-    }
     interface AppRoot {
     }
+    interface SearchBar {
+    }
+    interface SearchResult {
+        "handleClick"?: () => void;
+        "resultId"?: string;
+        "resultSnippet"?: string;
+        "resultTitle"?: string;
+    }
     interface IntrinsicElements {
-        "app-home": AppHome;
-        "app-profile": AppProfile;
         "app-root": AppRoot;
+        "search-bar": SearchBar;
+        "search-result": SearchResult;
     }
 }
 export { LocalJSX as JSX };
 declare module "@stencil/core" {
     export namespace JSX {
         interface IntrinsicElements {
-            "app-home": LocalJSX.AppHome & JSXBase.HTMLAttributes<HTMLAppHomeElement>;
-            "app-profile": LocalJSX.AppProfile & JSXBase.HTMLAttributes<HTMLAppProfileElement>;
             "app-root": LocalJSX.AppRoot & JSXBase.HTMLAttributes<HTMLAppRootElement>;
+            "search-bar": LocalJSX.SearchBar & JSXBase.HTMLAttributes<HTMLSearchBarElement>;
+            "search-result": LocalJSX.SearchResult & JSXBase.HTMLAttributes<HTMLSearchResultElement>;
         }
     }
 }

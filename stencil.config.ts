@@ -14,4 +14,7 @@ export const config: Config = {
       baseUrl: 'https://myapp.local/',
     },
   ],
+  env: {
+    API_URL: process.env.API_URL,
+  },
 };

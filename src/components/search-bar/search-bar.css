@@ -1,0 +1,29 @@
+:host {
+  display: block;
+  font-family: 'IBM Plex Sans', sans-serif;
+}
+
+.search-results {
+  font-family: 'IBM Plex Sans', sans-serif;
+}
+
+.search-results code {
+  font-family: 'IBM Plex Mono', monospace;
+}
+
+.search-bar {
+  width: 100%;
+  max-width: 400px;
+  height: 30px;
+  color: #000;
+  border: 1px solid #000;
+  border-radius: 1px;
+  font-size: 16px;
+  outline: none;
+  padding: 4px;
+}
+
+.search-bar:focus {
+  outline: none;
+  border: 1px solid #000;
+}
