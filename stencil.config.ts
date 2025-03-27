@@ -1,5 +1,7 @@
 import { Config } from '@stencil/core';
+import dotenv from 'dotenv';
 
+dotenv.config();
 // https://stenciljs.com/docs/config
 
 export const config: Config = {

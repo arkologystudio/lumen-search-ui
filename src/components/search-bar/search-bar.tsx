@@ -1,6 +1,6 @@
-import { Component, h, State } from "@stencil/core";
-import { API_ROUTE } from "../../constants";
-import { Env } from "@stencil/core";
+import { Component, h, State } from '@stencil/core';
+import { API_ROUTE } from '../../constants';
+import { Env } from '@stencil/core';
 
 /**
  * Define the structure of a single search result.
@@ -9,7 +9,7 @@ import { Env } from "@stencil/core";
 interface SearchResult {
   id: string;
   title: string;
-  snippet: string;
+  content: string;
 }
 
 /**
@@ -21,12 +21,12 @@ interface SearchResponse {
 }
 
 @Component({
-  tag: "search-bar",
-  styleUrl: "search-bar.css", // or remove if not needed
+  tag: 'search-bar',
+  styleUrl: 'search-bar.css', // or remove if not needed
   scoped: true,
 })
 export class SearchBar {
-  @State() query: string = "";
+  @State() query: string = '';
   @State() results: SearchResult[] = [];
 
   /**
@@ -38,7 +38,7 @@ export class SearchBar {
    * Handle input changes, reset any existing timers, and set a new one
    * that calls our actual search function after 1 second of no typing.
    */
-  private handleInput: (event: Event) => void = (event) => {
+  private handleInput: (event: Event) => void = event => {
     const inputEl = event.target as HTMLInputElement;
     this.query = inputEl.value;
 
@@ -61,14 +61,11 @@ export class SearchBar {
     }
 
     try {
-      console.log(
-        "Performing search on endpoint: ",
-        `${Env.API_ENDPOINT}${API_ROUTE}`
-      );
-      const response = await fetch(`${Env.API_ENDPOINT}${API_ROUTE}`, {
-        method: "POST",
+      console.log('Performing search on endpoint: ', `${Env.API_URL}${API_ROUTE}`);
+      const response = await fetch(`${Env.API_URL}${API_ROUTE}`, {
+        method: 'POST',
         headers: {
-          "Content-Type": "application/json",
+          'Content-Type': 'application/json',
         },
         body: JSON.stringify({ query: this.query }),
       });
@@ -80,8 +77,9 @@ export class SearchBar {
       // Cast the JSON response to our SearchResponse interface.
       const data = (await response.json()) as SearchResponse;
       this.results = data.results;
+      console.log('Search results: ', this.results);
     } catch (error) {
-      console.error("Search request failed:", error);
+      console.error('Search request failed:', error);
       this.results = [];
     }
   };
@@ -89,24 +87,13 @@ export class SearchBar {
   render() {
     return (
       <div>
-        <input
-          type="text"
-          value={this.query}
-          onInput={this.handleInput}
-          placeholder="Search Curriculum..."
-          class="search-bar"
-        />
-        <ul>
-          {this.results.map((item) => (
-            <li key={item.id}>
-              <search-result
-                resultId={item.id}
-                resultTitle={item.title}
-                resultSnippet={item.snippet}
-              />
-            </li>
-          ))}
-        </ul>
+        <input type="text" value={this.query} onInput={this.handleInput} placeholder="Search Curriculum..." class="search-bar" />
+
+        {this.results.map(item => (
+          <div key={item.id}>
+            <search-result resultId={item.id} resultTitle={item.title} resultSnippet={item.content} />
+          </div>
+        ))}
       </div>
     );
   }
