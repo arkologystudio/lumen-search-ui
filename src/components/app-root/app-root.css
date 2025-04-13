@@ -1,6 +1,15 @@
-.search-bar-container {
-  display: flex;
-
-  height: 100vh;
-  padding: 20px;
+:host {
+  display: block;
+  position: relative;
+  min-height: 100vh;
 }
+
+.app-container {
+  min-height: 100vh;
+}
+
+/* 
+.search-bar-container {
+  position: relative;
+  z-index: 10;
+} */

@@ -8,12 +8,13 @@ import { Component, h } from '@stencil/core';
 export class AppRoot {
   render() {
     return (
-      <div>
-        <main>
-          <div class="search-bar-container">
-            <search-bar />
-          </div>
-        </main>
+      <div class="app-container">
+        {/* The search bar will appear as a floating icon */}
+        <div class="search-bar-container">
+          <culturehack-search />
+        </div>
+
+        <main>{/* Your main content goes here */}</main>
       </div>
     );
   }

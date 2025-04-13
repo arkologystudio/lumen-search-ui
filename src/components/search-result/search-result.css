@@ -1,13 +1,35 @@
 :host {
   display: block;
+  font-family: 'IBM Plex Sans', sans-serif;
 }
-
 
 .search-result-container {
   box-sizing: border-box;
-  padding: 10px;
-  border: 1px solid #000000;
+  padding: 16px;
   border-radius: 1px;
-  margin-bottom: 10px;
-  width: 400px;
+  margin-bottom: 12px;
+  width: 100%;
+  background-color: #f9f9f9;
+  transition: background-color 0.2s ease;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
+}
+
+.search-result-container:hover {
+  background-color: #f0f0f0;
+}
+
+.title {
+  margin: 0 0 8px 0;
+  font-size: 16px;
+  font-weight: 600;
+  color: #333;
+  font-family: 'IBM Plex Sans', sans-serif;
+}
+
+.snippet {
+  margin: 0;
+  font-size: 14px;
+  color: #000000;
+  line-height: 1.5;
+  font-family: 'IBM Plex Sans', sans-serif;
 }

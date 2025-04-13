@@ -8,13 +8,13 @@ import { HTMLStencilElement, JSXBase } from "@stencil/core/internal";
 export namespace Components {
     interface AppRoot {
     }
-    interface SearchBar {
+    interface CulturehackSearch {
     }
     interface SearchResult {
-        "handleClick"?: () => void;
         "resultId": string;
         "resultSnippet": string;
         "resultTitle": string;
+        "resultUrl": string;
     }
 }
 declare global {
@@ -24,11 +24,11 @@ declare global {
         prototype: HTMLAppRootElement;
         new (): HTMLAppRootElement;
     };
-    interface HTMLSearchBarElement extends Components.SearchBar, HTMLStencilElement {
+    interface HTMLCulturehackSearchElement extends Components.CulturehackSearch, HTMLStencilElement {
     }
-    var HTMLSearchBarElement: {
-        prototype: HTMLSearchBarElement;
-        new (): HTMLSearchBarElement;
+    var HTMLCulturehackSearchElement: {
+        prototype: HTMLCulturehackSearchElement;
+        new (): HTMLCulturehackSearchElement;
     };
     interface HTMLSearchResultElement extends Components.SearchResult, HTMLStencilElement {
     }
@@ -38,24 +38,24 @@ declare global {
     };
     interface HTMLElementTagNameMap {
         "app-root": HTMLAppRootElement;
-        "search-bar": HTMLSearchBarElement;
+        "culturehack-search": HTMLCulturehackSearchElement;
         "search-result": HTMLSearchResultElement;
     }
 }
 declare namespace LocalJSX {
     interface AppRoot {
     }
-    interface SearchBar {
+    interface CulturehackSearch {
     }
     interface SearchResult {
-        "handleClick"?: () => void;
         "resultId"?: string;
         "resultSnippet"?: string;
         "resultTitle"?: string;
+        "resultUrl"?: string;
     }
     interface IntrinsicElements {
         "app-root": AppRoot;
-        "search-bar": SearchBar;
+        "culturehack-search": CulturehackSearch;
         "search-result": SearchResult;
     }
 }
@@ -64,7 +64,7 @@ declare module "@stencil/core" {
     export namespace JSX {
         interface IntrinsicElements {
             "app-root": LocalJSX.AppRoot & JSXBase.HTMLAttributes<HTMLAppRootElement>;
-            "search-bar": LocalJSX.SearchBar & JSXBase.HTMLAttributes<HTMLSearchBarElement>;
+            "culturehack-search": LocalJSX.CulturehackSearch & JSXBase.HTMLAttributes<HTMLCulturehackSearchElement>;
             "search-result": LocalJSX.SearchResult & JSXBase.HTMLAttributes<HTMLSearchResultElement>;
         }
     }

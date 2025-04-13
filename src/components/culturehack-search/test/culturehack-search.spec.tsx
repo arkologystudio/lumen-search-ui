@@ -1,18 +1,18 @@
 import { newSpecPage } from '@stencil/core/testing';
-import { SearchBar } from '../search-bar';
+import { CultureHackSearch } from '../culturehack-search';
 
-describe('search-bar', () => {
+describe('culturehack-search', () => {
   it('renders', async () => {
     const page = await newSpecPage({
-      components: [SearchBar],
-      html: `<search-bar></search-bar>`,
+      components: [CultureHackSearch],
+      html: `<culturehack-search></culturehack-search>`,
     });
     expect(page.root).toEqualHtml(`
-      <search-bar>
+      <culturehack-search>
         <mock:shadow-root>
           <slot></slot>
         </mock:shadow-root>
-      </search-bar>
+      </culturehack-search>
     `);
   });
 });

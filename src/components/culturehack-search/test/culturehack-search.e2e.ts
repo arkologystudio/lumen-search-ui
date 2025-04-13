@@ -1,11 +1,11 @@
 import { newE2EPage } from '@stencil/core/testing';
 
-describe('search-bar', () => {
+describe('culturehack-search', () => {
   it('renders', async () => {
     const page = await newE2EPage();
-    await page.setContent('<search-bar></search-bar>');
+    await page.setContent('<culturehack-search></culturehack-search>');
 
-    const element = await page.find('search-bar');
+    const element = await page.find('culturehack-search');
     expect(element).toHaveClass('hydrated');
   });
 });
