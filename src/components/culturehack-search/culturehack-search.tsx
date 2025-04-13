@@ -83,6 +83,7 @@ export class CultureHackSearch {
   @State() isOpen: boolean = false;
   @State() isLoading: boolean = false;
   @State() hasSearched: boolean = false;
+  @State() showPlaceholders: boolean = true;
 
   /**
    * We'll store a numeric ID for the debounce timer so we can clear it.
@@ -120,6 +121,11 @@ export class CultureHackSearch {
     const inputEl = event.target as HTMLInputElement;
     this.query = inputEl.value;
 
+    // Hide placeholders when user starts typing
+    if (inputEl.value.trim().length > 0) {
+      this.showPlaceholders = false;
+    }
+
     if (this.debounceTimer) {
       clearTimeout(this.debounceTimer);
     }
@@ -136,11 +142,13 @@ export class CultureHackSearch {
     if (this.query.trim().length === 0) {
       this.results = [];
       this.hasSearched = false;
+      this.showPlaceholders = true;
       return;
     }
 
     try {
       this.isLoading = true;
+      this.showPlaceholders = false;
       const apiUrl = getApiUrl();
       // Use API URL from WordPress settings if available, otherwise use API_ROUTE from constants
       const endpoint = apiUrl.includes('/api/embedding/search') ? apiUrl : `${apiUrl}${API_ROUTE}`;
@@ -175,6 +183,7 @@ export class CultureHackSearch {
 
   private toggleSearchModal = (): void => {
     this.isOpen = !this.isOpen;
+    this.showPlaceholders = true;
 
     if (this.isOpen) {
       // Focus the input field when modal opens
@@ -192,11 +201,21 @@ export class CultureHackSearch {
     }
   };
 
+  private handlePlaceholderSelected = (event: CustomEvent<string>): void => {
+    if (this.inputRef) {
+      this.query = event.detail;
+      this.inputRef.value = event.detail;
+      this.showPlaceholders = false;
+      this.performSearch();
+    }
+  };
+
   private closeModal = (): void => {
     this.isOpen = false;
     this.query = '';
     this.results = [];
     this.hasSearched = false;
+    this.showPlaceholders = true;
     document.body.classList.remove('culturehack-search-modal-open');
   };
 
@@ -250,8 +269,8 @@ export class CultureHackSearch {
                     class="search-icon"
                     xmlns="http://www.w3.org/2000/svg"
                     viewBox="0 0 24 24"
-                    width="20"
-                    height="20"
+                    width="18"
+                    height="18"
                     fill="none"
                     stroke="currentColor"
                     stroke-width="2"
@@ -261,67 +280,68 @@ export class CultureHackSearch {
                     <circle cx="11" cy="11" r="8"></circle>
                     <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
                   </svg>
-
                   <input
-                    type="text"
                     ref={el => (this.inputRef = el as HTMLInputElement)}
+                    type="text"
+                    class="search-modal-input"
+                    placeholder="Search Curriculum..."
                     value={this.query}
                     onInput={this.handleInput}
-                    placeholder="Search Curriculum..."
-                    class="search-modal-input"
+                    aria-label="Search"
                     id="search-modal-title"
                   />
+                  <button class="search-modal-close" onClick={this.closeModal} aria-label="Close search">
+                    <svg
+                      xmlns="http://www.w3.org/2000/svg"
+                      viewBox="0 0 24 24"
+                      width="24"
+                      height="24"
+                      fill="none"
+                      stroke="currentColor"
+                      stroke-width="2"
+                      stroke-linecap="round"
+                      stroke-linejoin="round"
+                    >
+                      <line x1="18" y1="6" x2="6" y2="18"></line>
+                      <line x1="6" y1="6" x2="18" y2="18"></line>
+                    </svg>
+                  </button>
                 </div>
-
-                <button class="search-modal-close" onClick={this.closeModal} aria-label="Close search">
-                  <svg
-                    xmlns="http://www.w3.org/2000/svg"
-                    viewBox="0 0 24 24"
-                    width="24"
-                    height="24"
-                    fill="none"
-                    stroke="currentColor"
-                    stroke-width="2"
-                    stroke-linecap="round"
-                    stroke-linejoin="round"
-                  >
-                    <line x1="18" y1="6" x2="6" y2="18"></line>
-                    <line x1="6" y1="6" x2="18" y2="18"></line>
-                  </svg>
-                </button>
               </div>
 
-              <div class="search-results-container">
+              <div class="search-modal-body">
                 {this.isLoading ? (
-                  <div class="search-loading">
-                    <div class="search-loading-spinner"></div>
-                    <p>Searching...</p>
-                  </div>
+                  <div class="search-status">Searching...</div>
                 ) : (
-                  <div class="search-results-content">
-                    {this.hasSearched && this.query.trim().length > 0 && (
-                      <div class="search-result-stats">
-                        {totalResultCount > 0 ? (
-                          <p>
-                            Found {totalResultCount} results for "{this.query}"
-                          </p>
+                  <div class="search-results-container">
+                    {/* Show placeholders when no search has been performed - simplified conditions */}
+                    {!this.hasSearched && !this.query && <search-placeholders isVisible={true} onPlaceholderSelected={this.handlePlaceholderSelected}></search-placeholders>}
+
+                    {/* Show results when a search has been performed */}
+                    {this.hasSearched && (
+                      <div>
+                        {this.results.length > 0 ? (
+                          <div class="search-results-list">
+                            <div class="search-results-count">
+                              {totalResultCount} result{totalResultCount !== 1 ? 's' : ''} found
+                            </div>
+                            {/* Render each search result and its matching blocks */}
+                            {this.results.map(result => (
+                              <div class="result-group">
+                                {result.metadata.matchingBlocks.map(block => (
+                                  <search-result
+                                    resultId={block.blockId}
+                                    resultTitle={result.title}
+                                    resultSnippet={cleanTextContent(block.content)}
+                                    resultUrl={result.url}
+                                  ></search-result>
+                                ))}
+                              </div>
+                            ))}
+                          </div>
                         ) : (
-                          <p>No results found for "{this.query}"</p>
+                          <div class="search-results-empty">No results found. Try a different search term.</div>
                         )}
-                      </div>
-                    )}
-
-                    {this.results.map(item =>
-                      item.metadata.matchingBlocks.map(block => (
-                        <div key={block.blockId}>
-                          <search-result resultId={block.blockId} resultTitle={item.title} resultSnippet={cleanTextContent(block.content)} resultUrl={item.url} />
-                        </div>
-                      )),
-                    )}
-
-                    {this.hasSearched && !this.isLoading && this.query.trim().length > 0 && totalResultCount === 0 && (
-                      <div class="no-results">
-                        <p>Try a different search term or check your spelling.</p>
                       </div>
                     )}
                   </div>

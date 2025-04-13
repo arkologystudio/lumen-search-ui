@@ -10,12 +10,19 @@ export namespace Components {
     }
     interface CulturehackSearch {
     }
+    interface SearchPlaceholders {
+        "isVisible": boolean;
+    }
     interface SearchResult {
         "resultId": string;
         "resultSnippet": string;
         "resultTitle": string;
         "resultUrl": string;
     }
+}
+export interface SearchPlaceholdersCustomEvent<T> extends CustomEvent<T> {
+    detail: T;
+    target: HTMLSearchPlaceholdersElement;
 }
 declare global {
     interface HTMLAppRootElement extends Components.AppRoot, HTMLStencilElement {
@@ -30,6 +37,23 @@ declare global {
         prototype: HTMLCulturehackSearchElement;
         new (): HTMLCulturehackSearchElement;
     };
+    interface HTMLSearchPlaceholdersElementEventMap {
+        "placeholderSelected": string;
+    }
+    interface HTMLSearchPlaceholdersElement extends Components.SearchPlaceholders, HTMLStencilElement {
+        addEventListener<K extends keyof HTMLSearchPlaceholdersElementEventMap>(type: K, listener: (this: HTMLSearchPlaceholdersElement, ev: SearchPlaceholdersCustomEvent<HTMLSearchPlaceholdersElementEventMap[K]>) => any, options?: boolean | AddEventListenerOptions): void;
+        addEventListener<K extends keyof DocumentEventMap>(type: K, listener: (this: Document, ev: DocumentEventMap[K]) => any, options?: boolean | AddEventListenerOptions): void;
+        addEventListener<K extends keyof HTMLElementEventMap>(type: K, listener: (this: HTMLElement, ev: HTMLElementEventMap[K]) => any, options?: boolean | AddEventListenerOptions): void;
+        addEventListener(type: string, listener: EventListenerOrEventListenerObject, options?: boolean | AddEventListenerOptions): void;
+        removeEventListener<K extends keyof HTMLSearchPlaceholdersElementEventMap>(type: K, listener: (this: HTMLSearchPlaceholdersElement, ev: SearchPlaceholdersCustomEvent<HTMLSearchPlaceholdersElementEventMap[K]>) => any, options?: boolean | EventListenerOptions): void;
+        removeEventListener<K extends keyof DocumentEventMap>(type: K, listener: (this: Document, ev: DocumentEventMap[K]) => any, options?: boolean | EventListenerOptions): void;
+        removeEventListener<K extends keyof HTMLElementEventMap>(type: K, listener: (this: HTMLElement, ev: HTMLElementEventMap[K]) => any, options?: boolean | EventListenerOptions): void;
+        removeEventListener(type: string, listener: EventListenerOrEventListenerObject, options?: boolean | EventListenerOptions): void;
+    }
+    var HTMLSearchPlaceholdersElement: {
+        prototype: HTMLSearchPlaceholdersElement;
+        new (): HTMLSearchPlaceholdersElement;
+    };
     interface HTMLSearchResultElement extends Components.SearchResult, HTMLStencilElement {
     }
     var HTMLSearchResultElement: {
@@ -39,6 +63,7 @@ declare global {
     interface HTMLElementTagNameMap {
         "app-root": HTMLAppRootElement;
         "culturehack-search": HTMLCulturehackSearchElement;
+        "search-placeholders": HTMLSearchPlaceholdersElement;
         "search-result": HTMLSearchResultElement;
     }
 }
@@ -46,6 +71,10 @@ declare namespace LocalJSX {
     interface AppRoot {
     }
     interface CulturehackSearch {
+    }
+    interface SearchPlaceholders {
+        "isVisible"?: boolean;
+        "onPlaceholderSelected"?: (event: SearchPlaceholdersCustomEvent<string>) => void;
     }
     interface SearchResult {
         "resultId"?: string;
@@ -56,6 +85,7 @@ declare namespace LocalJSX {
     interface IntrinsicElements {
         "app-root": AppRoot;
         "culturehack-search": CulturehackSearch;
+        "search-placeholders": SearchPlaceholders;
         "search-result": SearchResult;
     }
 }
@@ -65,6 +95,7 @@ declare module "@stencil/core" {
         interface IntrinsicElements {
             "app-root": LocalJSX.AppRoot & JSXBase.HTMLAttributes<HTMLAppRootElement>;
             "culturehack-search": LocalJSX.CulturehackSearch & JSXBase.HTMLAttributes<HTMLCulturehackSearchElement>;
+            "search-placeholders": LocalJSX.SearchPlaceholders & JSXBase.HTMLAttributes<HTMLSearchPlaceholdersElement>;
             "search-result": LocalJSX.SearchResult & JSXBase.HTMLAttributes<HTMLSearchResultElement>;
         }
     }
