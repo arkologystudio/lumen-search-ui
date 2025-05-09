@@ -1,5 +1,5 @@
 import { Component, h, State, Listen } from '@stencil/core';
-import { API_ROUTE } from '../../constants';
+import { AUTH_ROUTE, SEARCH_ROUTE } from '../../constants';
 import { Env } from '@stencil/core';
 
 // Define a type for WordPress global settings
@@ -43,7 +43,9 @@ interface SearchResult {
  */
 const getApiUrl = (): string => {
   const win = window as WindowWithWordPressSettings;
-  return win.CulturehackSearchSettings?.api_url || Env.API_URL || 'http://localhost:3000';
+  const apiUrl = win.CulturehackSearchSettings?.api_url || Env.API_URL || 'http://localhost:3000';
+  console.log('API URL: ', apiUrl);
+  return apiUrl;
 };
 
 /**
@@ -151,10 +153,9 @@ export class CultureHackSearch {
       this.showPlaceholders = false;
       const apiUrl = getApiUrl();
       // Use API URL from WordPress settings if available, otherwise use API_ROUTE from constants
-      const endpoint = apiUrl.includes('/api/embedding/search') ? apiUrl : `${apiUrl}${API_ROUTE}`;
-
-      console.log('Performing search on endpoint: ', endpoint);
-      const response = await fetch(endpoint, {
+      const authEndpoint = `${apiUrl}${AUTH_ROUTE}`;
+      console.log('Auth endpoint: ', authEndpoint);
+      const authResponse = await fetch(authEndpoint, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -162,12 +163,32 @@ export class CultureHackSearch {
         body: JSON.stringify({ query: this.query }),
       });
 
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
+      if (!authResponse.ok) {
+        throw new Error(`HTTP error! status: ${authResponse.status}`);
+      }
+
+      // Parse the auth response to get the token
+      const authData = await authResponse.json();
+      const token = authData.token || authData;
+
+      const embeddingSearchEndpoint = `${apiUrl}${SEARCH_ROUTE}`;
+
+      console.log('Performing search on endpoint: ', embeddingSearchEndpoint);
+      const searchRes = await fetch(embeddingSearchEndpoint, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`,
+        },
+        body: JSON.stringify({ query: this.query }),
+      });
+
+      if (!searchRes.ok) {
+        throw new Error(`HTTP error! status: ${searchRes.status}`);
       }
 
       // Cast the JSON response to our SearchResponse interface.
-      const data = await response.json();
+      const data = await searchRes.json();
       console.log('Search results: ', data);
       this.results = data.results;
       this.hasSearched = true;
@@ -201,10 +222,10 @@ export class CultureHackSearch {
     }
   };
 
-  private handlePlaceholderSelected = (event: CustomEvent<string>): void => {
+  private handlePlaceholderSelected = (subtitle: string): void => {
     if (this.inputRef) {
-      this.query = event.detail;
-      this.inputRef.value = event.detail;
+      this.query = subtitle;
+      this.inputRef.value = subtitle;
       this.showPlaceholders = false;
       this.performSearch();
     }
@@ -315,7 +336,7 @@ export class CultureHackSearch {
                 ) : (
                   <div class="search-results-container">
                     {/* Show placeholders when no search has been performed - simplified conditions */}
-                    {!this.hasSearched && !this.query && <search-placeholders isVisible={true} onPlaceholderSelected={this.handlePlaceholderSelected}></search-placeholders>}
+                    {!this.hasSearched && !this.query && <search-placeholders isVisible={true} selectPlaceholder={this.handlePlaceholderSelected}></search-placeholders>}
 
                     {/* Show results when a search has been performed */}
                     {this.hasSearched && (

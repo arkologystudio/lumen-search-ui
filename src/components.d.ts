@@ -12,6 +12,7 @@ export namespace Components {
     }
     interface SearchPlaceholders {
         "isVisible": boolean;
+        "selectPlaceholder": (subtitle: string) => void;
     }
     interface SearchResult {
         "resultId": string;
@@ -19,10 +20,6 @@ export namespace Components {
         "resultTitle": string;
         "resultUrl": string;
     }
-}
-export interface SearchPlaceholdersCustomEvent<T> extends CustomEvent<T> {
-    detail: T;
-    target: HTMLSearchPlaceholdersElement;
 }
 declare global {
     interface HTMLAppRootElement extends Components.AppRoot, HTMLStencilElement {
@@ -37,18 +34,7 @@ declare global {
         prototype: HTMLCulturehackSearchElement;
         new (): HTMLCulturehackSearchElement;
     };
-    interface HTMLSearchPlaceholdersElementEventMap {
-        "placeholderSelected": string;
-    }
     interface HTMLSearchPlaceholdersElement extends Components.SearchPlaceholders, HTMLStencilElement {
-        addEventListener<K extends keyof HTMLSearchPlaceholdersElementEventMap>(type: K, listener: (this: HTMLSearchPlaceholdersElement, ev: SearchPlaceholdersCustomEvent<HTMLSearchPlaceholdersElementEventMap[K]>) => any, options?: boolean | AddEventListenerOptions): void;
-        addEventListener<K extends keyof DocumentEventMap>(type: K, listener: (this: Document, ev: DocumentEventMap[K]) => any, options?: boolean | AddEventListenerOptions): void;
-        addEventListener<K extends keyof HTMLElementEventMap>(type: K, listener: (this: HTMLElement, ev: HTMLElementEventMap[K]) => any, options?: boolean | AddEventListenerOptions): void;
-        addEventListener(type: string, listener: EventListenerOrEventListenerObject, options?: boolean | AddEventListenerOptions): void;
-        removeEventListener<K extends keyof HTMLSearchPlaceholdersElementEventMap>(type: K, listener: (this: HTMLSearchPlaceholdersElement, ev: SearchPlaceholdersCustomEvent<HTMLSearchPlaceholdersElementEventMap[K]>) => any, options?: boolean | EventListenerOptions): void;
-        removeEventListener<K extends keyof DocumentEventMap>(type: K, listener: (this: Document, ev: DocumentEventMap[K]) => any, options?: boolean | EventListenerOptions): void;
-        removeEventListener<K extends keyof HTMLElementEventMap>(type: K, listener: (this: HTMLElement, ev: HTMLElementEventMap[K]) => any, options?: boolean | EventListenerOptions): void;
-        removeEventListener(type: string, listener: EventListenerOrEventListenerObject, options?: boolean | EventListenerOptions): void;
     }
     var HTMLSearchPlaceholdersElement: {
         prototype: HTMLSearchPlaceholdersElement;
@@ -74,7 +60,7 @@ declare namespace LocalJSX {
     }
     interface SearchPlaceholders {
         "isVisible"?: boolean;
-        "onPlaceholderSelected"?: (event: SearchPlaceholdersCustomEvent<string>) => void;
+        "selectPlaceholder"?: (subtitle: string) => void;
     }
     interface SearchResult {
         "resultId"?: string;

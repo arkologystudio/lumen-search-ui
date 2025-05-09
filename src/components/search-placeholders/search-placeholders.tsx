@@ -1,4 +1,4 @@
-import { Component, h, Prop, Event, EventEmitter } from '@stencil/core';
+import { Component, h, Prop } from '@stencil/core';
 
 interface PlaceholderItem {
   title: string;
@@ -12,7 +12,7 @@ interface PlaceholderItem {
 })
 export class SearchPlaceholders {
   @Prop() isVisible: boolean = true;
-  @Event() placeholderSelected: EventEmitter<string>;
+  @Prop() selectPlaceholder: (subtitle: string) => void;
 
   // Default example searches
   private placeholders: PlaceholderItem[] = [
@@ -32,7 +32,7 @@ export class SearchPlaceholders {
 
   private handlePlaceholderClick = (subtitle: string): void => {
     console.log('Placeholder clicked:', subtitle);
-    this.placeholderSelected.emit(subtitle);
+    this.selectPlaceholder(subtitle);
   };
 
   componentWillRender() {
