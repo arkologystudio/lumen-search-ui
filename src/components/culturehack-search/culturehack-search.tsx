@@ -6,6 +6,7 @@ import { Env } from '@stencil/core';
 interface WindowWithWordPressSettings extends Window {
   CulturehackSearchSettings?: {
     api_url: string;
+    wp_rest_url?: string;
   };
 }
 
@@ -30,13 +31,31 @@ interface SearchResult {
   };
 }
 
-/**
- * Define the structure of the API's response if it returns a top-level
- * `results` array or something similar.
- */
-// interface SearchResponse {
-//   results: SearchResult[];
-// }
+// Interface for the lightweight search response from embedding service
+interface EmbeddingSearchResponse {
+  results: {
+    id: string;
+    score: number;
+    metadata: {
+      matchingBlocks: Array<{
+        blockId: string;
+        score: number;
+      }>;
+    };
+  }[];
+}
+
+// Interface for WordPress REST API response
+interface WordPressPost {
+  id: number;
+  title: {
+    rendered: string;
+  };
+  content: {
+    rendered: string;
+  };
+  link: string;
+}
 
 /**
  * Gets the API URL from WordPress settings or falls back to environment variable
@@ -46,6 +65,17 @@ const getApiUrl = (): string => {
   const apiUrl = win.CulturehackSearchSettings?.api_url || Env.API_URL || 'http://localhost:3000';
   console.log('API URL: ', apiUrl);
   return apiUrl;
+};
+
+/**
+ * Gets the WordPress REST API URL from settings or constructs a default one
+ */
+const getWordPressRestUrl = (): string => {
+  const win = window as WindowWithWordPressSettings;
+  // Try to get from settings, or fall back to current site URL + /wp-json/
+  const wpRestUrl = win.CulturehackSearchSettings?.wp_rest_url || `${window.location.origin}/wp-json/wp/v2`;
+  console.log('WordPress REST API URL: ', wpRestUrl);
+  return wpRestUrl;
 };
 
 /**
@@ -135,6 +165,63 @@ export class CultureHackSearch {
   };
 
   /**
+   * Fetch post details from WordPress REST API by IDs
+   */
+  private fetchPostsFromWordPress = async (postIds: string[]): Promise<WordPressPost[]> => {
+    if (!postIds.length) return [];
+
+    const wpRestUrl = getWordPressRestUrl();
+    // Convert post IDs to URL parameters
+    const idsParam = postIds.join(',');
+    const postsUrl = `${wpRestUrl}/posts?include=${idsParam}&_embed`;
+
+    try {
+      const response = await fetch(postsUrl);
+      if (!response.ok) {
+        throw new Error(`WordPress API error: ${response.status}`);
+      }
+      return await response.json();
+    } catch (error) {
+      console.error('Error fetching WordPress posts:', error);
+      return [];
+    }
+  };
+
+  /**
+   * Convert WordPress posts to SearchResult format
+   */
+  private convertWordPressPostsToSearchResults = (posts: WordPressPost[], embeddingResults: EmbeddingSearchResponse['results']): SearchResult[] => {
+    // Create a map of post IDs to posts for easy lookup
+    const postsMap = new Map<string, WordPressPost>();
+    posts.forEach(post => postsMap.set(String(post.id), post));
+
+    // Map embedding results to full search results
+    return embeddingResults
+      .filter(result => postsMap.has(result.id))
+      .map(result => {
+        const post = postsMap.get(result.id);
+        if (!post) return null; // This shouldn't happen due to filter above
+
+        return {
+          id: String(post.id),
+          title: post.title.rendered,
+          content: post.content.rendered,
+          url: post.link,
+          metadata: {
+            matchingBlocks: result.metadata.matchingBlocks.map(block => ({
+              blockId: block.blockId,
+              // Extract content from the post based on blockId or use a default snippet
+              content: post.content.rendered, // In a real implementation, you might extract specific sections
+              score: block.score,
+              url: post.link,
+            })),
+          },
+        };
+      })
+      .filter((result): result is SearchResult => result !== null);
+  };
+
+  /**
    * Perform the actual search by sending a POST request to our local
    * API endpoint (localhost:3000/api/embedding/search). This route and
    * payload structure can be adjusted as needed.
@@ -180,17 +267,31 @@ export class CultureHackSearch {
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${token}`,
         },
-        body: JSON.stringify({ query: this.query }),
+        body: JSON.stringify({ query: this.query, idsOnly: true }), // Request only IDs from embedding service
       });
 
       if (!searchRes.ok) {
         throw new Error(`HTTP error! status: ${searchRes.status}`);
       }
 
-      // Cast the JSON response to our SearchResponse interface.
-      const data = await searchRes.json();
-      console.log('Search results: ', data);
-      this.results = data.results;
+      // Parse the search response to get post IDs
+      const embeddingData = (await searchRes.json()) as EmbeddingSearchResponse;
+
+      if (!embeddingData.results || embeddingData.results.length === 0) {
+        this.results = [];
+        this.hasSearched = true;
+        return;
+      }
+
+      // Extract post IDs from embedding results
+      const postIds = embeddingData.results.map(result => result.id);
+
+      // Fetch the actual post content from WordPress REST API
+      const wpPosts = await this.fetchPostsFromWordPress(postIds);
+
+      // Convert WordPress posts to our SearchResult format
+      this.results = this.convertWordPressPostsToSearchResults(wpPosts, embeddingData.results);
+
       this.hasSearched = true;
       console.log('Search results: ', this.results);
     } catch (error) {

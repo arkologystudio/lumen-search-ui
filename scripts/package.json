@@ -1,0 +1,15 @@
+{
+  "name": "wordpress-content-indexer",
+  "version": "1.0.0",
+  "description": "Portable WordPress content indexer for semantic search",
+  "main": "portable-indexer.js",
+  "scripts": {
+    "start": "node portable-indexer.js"
+  },
+  "dependencies": {
+    "node-fetch": "^2.6.7",
+    "jsdom": "^22.1.0",
+    "dotenv": "^16.0.3",
+    "@wordpress/block-serialization-default-parser": "^4.20.0"
+  }
+}
