@@ -1,8 +1,8 @@
 {
-  "name": "culturehack-semantic-search",
+  "name": "lumen-search-ui",
   "private": true,
   "version": "0.0.1",
-  "description": "Stencil App Starter",
+  "description": "Lumen Search UI component",
   "main": "dist/index.cjs.js",
   "module": "dist/index.js",
   "es2015": "dist/esm/index.mjs",

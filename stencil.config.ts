@@ -5,7 +5,7 @@ dotenv.config();
 // https://stenciljs.com/docs/config
 
 export const config: Config = {
-  namespace: 'culturehack-search',
+  namespace: 'lumen-search-ui',
   globalStyle: 'src/global/app.css',
   globalScript: 'src/global/app.ts',
   taskQueue: 'async',

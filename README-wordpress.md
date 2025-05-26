@@ -1,4 +1,4 @@
-# CultureHack Semantic Search
+# Lumen Search UI
 
 This project contains a StencilJS-based semantic search component that can be easily integrated into WordPress sites.
 
@@ -54,15 +54,15 @@ The script performs the following actions:
 - Optionally packages everything into a zip file ready for WordPress installation
 
 After running the script, the WordPress plugin will be available in:
-- Folder: `wordpress-plugin/culturehack-search/` 
-- Zip (if using --zip option): `wordpress-plugin/culturehack-search.zip`
+- Folder: `wordpress-plugin/lumen-search/` 
+- Zip (if using --zip option): `wordpress-plugin/lumen-search.zip`
 
 ### Installing in WordPress
 
-1. Upload the `culturehack-search` folder to your WordPress plugin directory (`/wp-content/plugins/`).
-   - Or upload the `culturehack-search.zip` file through the WordPress admin interface (Plugins > Add New > Upload Plugin).
+1. Upload the `lumen-search` folder to your WordPress plugin directory (`/wp-content/plugins/`).
+   - Or upload the `lumen-search.zip` file through the WordPress admin interface (Plugins > Add New > Upload Plugin).
 2. Activate the plugin through the 'Plugins' menu in WordPress.
-3. Configure the API URL in Settings > CultureHack Search.
+3. Configure the API URL in Settings > Lumen Search.
 
 ### Using the Search Component
 
@@ -71,13 +71,13 @@ After running the script, the WordPress plugin will be available in:
 Add the search component anywhere using the shortcode:
 
 ```
-[culturehack_search]
+[lumen_search]
 ```
 
 #### Widget
 
 1. Go to Appearance > Widgets in your WordPress admin.
-2. Drag the "CultureHack Search" widget to any widget area.
+2. Drag the "Lumen Search" widget to any widget area.
 3. Optionally add a title.
 4. Save the widget.
 
@@ -87,8 +87,8 @@ Add the search component directly in your theme files:
 
 ```php
 <?php 
-if (function_exists('culturehack_search_shortcode')) {
-    echo culturehack_search_shortcode();
+if (function_exists('lumen_search_shortcode')) {
+    echo lumen_search_shortcode();
 }
 ?>
 ```
@@ -98,7 +98,7 @@ if (function_exists('culturehack_search_shortcode')) {
 If you need to add the component directly in your HTML:
 
 ```html
-<culturehack-search></culturehack-search>
+<lumen-search></lumen-search>
 ```
 
 ## API Requirements

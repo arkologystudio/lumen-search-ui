@@ -8,7 +8,7 @@ import { HTMLStencilElement, JSXBase } from "@stencil/core/internal";
 export namespace Components {
     interface AppRoot {
     }
-    interface CulturehackSearch {
+    interface LumenSearch {
     }
     interface SearchPlaceholders {
         "isVisible": boolean;
@@ -28,11 +28,11 @@ declare global {
         prototype: HTMLAppRootElement;
         new (): HTMLAppRootElement;
     };
-    interface HTMLCulturehackSearchElement extends Components.CulturehackSearch, HTMLStencilElement {
+    interface HTMLLumenSearchElement extends Components.LumenSearch, HTMLStencilElement {
     }
-    var HTMLCulturehackSearchElement: {
-        prototype: HTMLCulturehackSearchElement;
-        new (): HTMLCulturehackSearchElement;
+    var HTMLLumenSearchElement: {
+        prototype: HTMLLumenSearchElement;
+        new (): HTMLLumenSearchElement;
     };
     interface HTMLSearchPlaceholdersElement extends Components.SearchPlaceholders, HTMLStencilElement {
     }
@@ -48,7 +48,7 @@ declare global {
     };
     interface HTMLElementTagNameMap {
         "app-root": HTMLAppRootElement;
-        "culturehack-search": HTMLCulturehackSearchElement;
+        "lumen-search": HTMLLumenSearchElement;
         "search-placeholders": HTMLSearchPlaceholdersElement;
         "search-result": HTMLSearchResultElement;
     }
@@ -56,7 +56,7 @@ declare global {
 declare namespace LocalJSX {
     interface AppRoot {
     }
-    interface CulturehackSearch {
+    interface LumenSearch {
     }
     interface SearchPlaceholders {
         "isVisible"?: boolean;
@@ -70,7 +70,7 @@ declare namespace LocalJSX {
     }
     interface IntrinsicElements {
         "app-root": AppRoot;
-        "culturehack-search": CulturehackSearch;
+        "lumen-search": LumenSearch;
         "search-placeholders": SearchPlaceholders;
         "search-result": SearchResult;
     }
@@ -80,7 +80,7 @@ declare module "@stencil/core" {
     export namespace JSX {
         interface IntrinsicElements {
             "app-root": LocalJSX.AppRoot & JSXBase.HTMLAttributes<HTMLAppRootElement>;
-            "culturehack-search": LocalJSX.CulturehackSearch & JSXBase.HTMLAttributes<HTMLCulturehackSearchElement>;
+            "lumen-search": LocalJSX.LumenSearch & JSXBase.HTMLAttributes<HTMLLumenSearchElement>;
             "search-placeholders": LocalJSX.SearchPlaceholders & JSXBase.HTMLAttributes<HTMLSearchPlaceholdersElement>;
             "search-result": LocalJSX.SearchResult & JSXBase.HTMLAttributes<HTMLSearchResultElement>;
         }

@@ -4,7 +4,7 @@ import { Env } from '@stencil/core';
 
 // Define a type for WordPress global settings
 interface WindowWithWordPressSettings extends Window {
-  CulturehackSearchSettings?: {
+  LumenSearchSettings?: {
     api_url: string;
     wp_rest_url?: string;
   };
@@ -62,7 +62,7 @@ interface WordPressPost {
  */
 const getApiUrl = (): string => {
   const win = window as WindowWithWordPressSettings;
-  const apiUrl = win.CulturehackSearchSettings?.api_url || Env.API_URL || 'http://localhost:3000';
+  const apiUrl = win.LumenSearchSettings?.api_url || Env.API_URL || 'http://localhost:3000';
   console.log('API URL: ', apiUrl);
   return apiUrl;
 };
@@ -73,7 +73,7 @@ const getApiUrl = (): string => {
 const getWordPressRestUrl = (): string => {
   const win = window as WindowWithWordPressSettings;
   // Try to get from settings, or fall back to current site URL + /wp-json/
-  const wpRestUrl = win.CulturehackSearchSettings?.wp_rest_url || `${window.location.origin}/wp-json/wp/v2`;
+  const wpRestUrl = win.LumenSearchSettings?.wp_rest_url || `${window.location.origin}/wp-json/wp/v2`;
   console.log('WordPress REST API URL: ', wpRestUrl);
   return wpRestUrl;
 };
@@ -105,11 +105,11 @@ const cleanTextContent = (text: string): string => {
 };
 
 @Component({
-  tag: 'culturehack-search',
-  styleUrl: 'culturehack-search.css',
+  tag: 'lumen-search',
+  styleUrl: 'lumen-search.css',
   shadow: true, // Use shadow DOM to isolate the component
 })
-export class CultureHackSearch {
+export class LumenSearch {
   @State() query: string = '';
   @State() results: SearchResult[] = [];
   @State() isOpen: boolean = false;
@@ -316,10 +316,10 @@ export class CultureHackSearch {
       }, 100);
 
       // Add class to prevent scrolling on body
-      document.body.classList.add('culturehack-search-modal-open');
+      document.body.classList.add('lumen-search-modal-open');
     } else {
       // Remove class when modal closes
-      document.body.classList.remove('culturehack-search-modal-open');
+      document.body.classList.remove('lumen-search-modal-open');
     }
   };
 
@@ -338,7 +338,7 @@ export class CultureHackSearch {
     this.results = [];
     this.hasSearched = false;
     this.showPlaceholders = true;
-    document.body.classList.remove('culturehack-search-modal-open');
+    document.body.classList.remove('lumen-search-modal-open');
   };
 
   // Handle clicking outside to close the modal
@@ -350,7 +350,7 @@ export class CultureHackSearch {
 
   disconnectedCallback() {
     // Ensure we remove the class if component is unmounted while modal is open
-    document.body.classList.remove('culturehack-search-modal-open');
+    document.body.classList.remove('lumen-search-modal-open');
   }
 
   render() {
@@ -358,10 +358,10 @@ export class CultureHackSearch {
     const totalResultCount = this.results.reduce((count, result) => count + result.metadata.matchingBlocks.length, 0);
     console.log('Total result count: ', this.results);
     return (
-      <div class="culturehack-search-container">
+      <div class="lumen-search-container">
         {/* Search icon in the top right */}
         <div class="search-icon-container" onClick={this.toggleSearchModal}>
-          <span class="search-text">Search Curriculum</span>
+          <span class="search-text">Search</span>
 
           <button class="search-icon-button" aria-label="Open search" title="Open search (press / to search)">
             <svg
@@ -406,7 +406,7 @@ export class CultureHackSearch {
                     ref={el => (this.inputRef = el as HTMLInputElement)}
                     type="text"
                     class="search-modal-input"
-                    placeholder="Search Curriculum..."
+                    placeholder="Search..."
                     value={this.query}
                     onInput={this.handleInput}
                     aria-label="Search"

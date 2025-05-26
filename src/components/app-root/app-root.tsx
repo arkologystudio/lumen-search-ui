@@ -11,7 +11,7 @@ export class AppRoot {
       <div class="app-container">
         {/* The search bar will appear as a floating icon */}
         <div class="search-bar-container">
-          <culturehack-search />
+          <lumen-search />
         </div>
 
         <main>{/* Your main content goes here */}</main>

@@ -1,41 +1,62 @@
-# Stencil App Starter
+# Lumen Search UI
 
-Stencil is a compiler for building fast web apps using Web Components.
+A semantic search component built with StencilJS that can be easily integrated into any website or application.
 
-Stencil combines the best concepts of the most popular frontend frameworks into a compile-time rather than run-time tool.  Stencil takes TypeScript, JSX, a tiny virtual DOM layer, efficient one-way data binding, an asynchronous rendering pipeline (similar to React Fiber), and lazy-loading out of the box, and generates 100% standards-based Web Components that run in any browser supporting the Custom Elements v1 spec.
+## Features
 
-Stencil components are just Web Components, so they work in any major framework or with no framework at all. In many cases, Stencil can be used as a drop in replacement for traditional frontend frameworks given the capabilities now available in the browser, though using it as such is certainly not required.
-
-Stencil also enables a number of key capabilities on top of Web Components, in particular Server Side Rendering (SSR) without the need to run a headless browser, pre-rendering, and objects-as-properties (instead of just strings).
+- **Universal Compatibility**: Works with any framework or vanilla HTML
+- **Semantic Search**: Powered by embedding-based search for better results
+- **WordPress Integration**: Ready-to-use WordPress plugin included
+- **Modern UI**: Clean, accessible interface with keyboard shortcuts
+- **Customizable**: Easy to theme and configure for different use cases
 
 ## Getting Started
 
-To start a new project using Stencil, clone this repo to a new directory:
+### Development
 
 ```bash
-npm init stencil app
-```
+# Install dependencies
+npm install
 
-and run:
-
-```bash
+# Start development server
 npm start
 ```
 
-To build the app for production, run:
+### Building
 
 ```bash
+# Build for production
 npm run build
 ```
 
-To run the unit tests once, run:
+### Testing
 
-```
+```bash
+# Run tests once
 npm test
-```
 
-To run the unit tests and watch for file changes during development, run:
-
-```
+# Run tests in watch mode
 npm run test.watch
 ```
+
+## Usage
+
+### As a Web Component
+
+```html
+<lumen-search></lumen-search>
+```
+
+### WordPress Integration
+
+See [README-wordpress.md](./README-wordpress.md) for detailed WordPress integration instructions.
+
+## Configuration
+
+The component can be configured through environment variables or WordPress settings:
+
+- `API_URL`: The URL of your search API endpoint
+
+## License
+
+MIT
