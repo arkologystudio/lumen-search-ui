@@ -22,6 +22,67 @@
   font-family: 'IBM Plex Mono', monospace;
 }
 
+/* Embedded mode styles */
+.lumen-search-embedded {
+  width: 100%;
+  max-width: var(--max-width, 800px);
+  margin: 0 auto;
+}
+
+.search-input-wrapper.embedded {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  position: relative;
+}
+
+.search-input-wrapper.embedded .search-icon {
+  position: absolute;
+  left: 15px;
+  color: #666;
+  pointer-events: none;
+}
+
+.search-input-wrapper.embedded .search-input {
+  flex: 1;
+  padding: 0 120px 0 45px;
+  min-height: 45px;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  font-size: 16px;
+  outline: none;
+  transition: border-color 0.2s;
+}
+
+.search-input-wrapper.embedded .search-input:focus {
+  border-color: var(--primary-color, #0073aa);
+}
+
+.search-input-wrapper.embedded .search-button {
+  position: absolute;
+  right: 5px;
+  padding: 8px 20px;
+  border: none;
+  border-radius: 4px;
+  background-color: var(--button-bg, #0073aa);
+  color: var(--button-text-color, #ffffff);
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background-color 0.2s;
+}
+
+.search-input-wrapper.embedded .search-button:hover {
+  background-color: var(--button-hover-bg, #005a87);
+}
+
+.search-results-dropdown {
+  width: 100%;
+  padding: 15px;
+  overflow-y: auto;
+}
+
 /* Search icon container */
 .search-icon-container {
   position: fixed;
@@ -30,9 +91,9 @@
   height: 40px;
   display: flex;
   align-items: center;
-  /* background-color: #f5f5f5; */
-  border-radius: 1px;
-  border: 1px solid var(--border-color);
+  background-color: var(--button-bg, #0073aa);
+  border-radius: var(--border-radius, 4px);
+  border: var(--border-width, 1px) solid var(--border-color, #0073aa);
   cursor: pointer;
   z-index: 100;
   box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
@@ -44,7 +105,7 @@
 .search-text {
   font-size: 14px;
   font-weight: 500;
-  color: #555;
+  color: var(--button-text-color, #ffffff);
   margin-right: auto;
 }
 
@@ -58,10 +119,11 @@
   padding: 0;
   width: 24px;
   height: 24px;
+  color: var(--button-text-color, #ffffff);
 }
 
 .search-icon-container:hover {
-  background-color: var(--hover-bg);
+  background-color: var(--button-hover-bg, #005a87);
   transform: scale(1.03);
 }
 
@@ -194,8 +256,6 @@
 /* Styles for placeholder content */
 .search-modal-body {
   padding: 16px 0;
-  overflow-y: auto;
-  max-height: 70vh;
 }
 
 /* Webkit scrollbar styling (Chrome, Safari, Edge) */

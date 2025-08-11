@@ -5,13 +5,22 @@
  * It contains typing information for all components that exist in this project.
  */
 import { HTMLStencilElement, JSXBase } from "@stencil/core/internal";
+import { PlaceholderItem } from "./components/search-placeholders/search-placeholders";
+export { PlaceholderItem } from "./components/search-placeholders/search-placeholders";
 export namespace Components {
     interface AppRoot {
     }
     interface LumenSearch {
+        "apiEndpoint": string;
+        "apiKey": string;
+        "displayMode": 'icon' | 'embedded';
+        "siteId": string;
+        "topK": number;
     }
     interface SearchPlaceholders {
+        "customStyles": any;
         "isVisible": boolean;
+        "placeholders": PlaceholderItem[];
         "selectPlaceholder": (subtitle: string) => void;
     }
     interface SearchResult {
@@ -57,9 +66,16 @@ declare namespace LocalJSX {
     interface AppRoot {
     }
     interface LumenSearch {
+        "apiEndpoint"?: string;
+        "apiKey"?: string;
+        "displayMode"?: 'icon' | 'embedded';
+        "siteId"?: string;
+        "topK"?: number;
     }
     interface SearchPlaceholders {
+        "customStyles"?: any;
         "isVisible"?: boolean;
+        "placeholders"?: PlaceholderItem[];
         "selectPlaceholder"?: (subtitle: string) => void;
     }
     interface SearchResult {

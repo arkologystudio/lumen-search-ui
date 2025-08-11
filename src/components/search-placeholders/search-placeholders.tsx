@@ -1,6 +1,6 @@
 import { Component, h, Prop } from '@stencil/core';
 
-interface PlaceholderItem {
+export interface PlaceholderItem {
   title: string;
   subtitle: string;
 }
@@ -13,9 +13,8 @@ interface PlaceholderItem {
 export class SearchPlaceholders {
   @Prop() isVisible: boolean = true;
   @Prop() selectPlaceholder: (subtitle: string) => void;
-
-  // Default example searches
-  private placeholders: PlaceholderItem[] = [
+  @Prop() customStyles: any = {};
+  @Prop() placeholders: PlaceholderItem[] = [
     {
       title: 'Query the Culture Hack curriculum',
       subtitle: 'What is a listening model?',
@@ -47,14 +46,40 @@ export class SearchPlaceholders {
       return null;
     }
 
+    // Don't render anything if there are no placeholders or placeholders array is empty
+    if (!this.placeholders || this.placeholders.length === 0) {
+      console.log('No placeholders to display');
+      return null;
+    }
+
+    const placeholderItemStyle = {
+      backgroundColor: this.customStyles.placeholder_bg || '#f8f9fa',
+      borderRadius: this.customStyles.border_radius || '4px',
+      fontFamily: this.customStyles.font_family || 'inherit',
+    };
+
+    const titleStyle = {
+      color: this.customStyles.text_color || '#333333',
+      fontSize: this.customStyles.font_size || '16px',
+    };
+
+    const subtitleStyle = {
+      color: this.customStyles.text_color || '#666666',
+      fontSize: `calc(${this.customStyles.font_size || '16px'} * 0.875)`,
+    };
+
     return (
       <div class="placeholders-container">
-        <h4 class="placeholders-heading">Use this tool to</h4>
+        <h4 class="placeholders-heading" style={titleStyle}>Use this tool to</h4>
         <div class="placeholders-list">
           {this.placeholders.map(placeholder => (
-            <div class="placeholder-item" onClick={() => this.handlePlaceholderClick(placeholder.subtitle)}>
-              <h4 class="title">{placeholder.title}</h4>
-              <p class="subtitle">{placeholder.subtitle}</p>
+            <div 
+              class="placeholder-item" 
+              onClick={() => this.handlePlaceholderClick(placeholder.subtitle)}
+              style={placeholderItemStyle}
+            >
+              <h4 class="title" style={titleStyle}>{placeholder.title}</h4>
+              <p class="subtitle" style={subtitleStyle}>{placeholder.subtitle}</p>
             </div>
           ))}
         </div>
