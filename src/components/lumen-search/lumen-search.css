@@ -7,6 +7,7 @@
   --text-color: #333;
   --border-color: #000;
   --hover-bg: #e0e0e0;
+  --scrollbar-color: #888;
 }
 
 .lumen-search-container * {
@@ -268,7 +269,7 @@
 }
 
 .search-results-container::-webkit-scrollbar-thumb {
-  background-color: var(--primary-color);
+  background-color: var(--scrollbar-color, #888);
   border-radius: 0;
 }
 

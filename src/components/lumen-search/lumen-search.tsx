@@ -24,39 +24,75 @@ interface MatchingBlock {
   score: number;
   url: string;
 }
+
 /**
  * Define the structure of a single search result.
  * Adjust fields (title/snippet/etc.) to match your own API's response.
  */
-
 interface SearchResult {
   id: string;
   title: string;
   content: string;
   url: string;
+  type?: 'post' | 'product'; // Added to distinguish between content types
   metadata: {
     matchingBlocks: MatchingBlock[];
   };
+  // Product-specific fields (optional)
+  productData?: {
+    price: string;
+    image: string;
+    rating: number;
+    inStock: boolean;
+    category: string;
+    brand: string;
+  };
 }
 
-// Interface for the lightweight search response from embedding service
+// Interface for the lightweight search response from embedding service (knowledge posts)
 interface EmbeddingSearchResponse {
   success: boolean;
   results: Array<{
-    postId: string;
-    postTitle: string;
-    postUrl: string;
-    siteId: string;
-    averageScore: number;
-    maxScore: number;
-    totalChunks: number;
-    chunks: Array<{
+    postId?: string; // Optional for backward compatibility
+    postTitle?: string;
+    postUrl?: string;
+    // Product fields (when searching products)
+    id?: string | number;
+    title?: string;
+    url?: string;
+    type?: 'post' | 'product';
+    content?: string;
+    price?: string;
+    image?: string;
+    rating?: number;
+    in_stock?: boolean;
+    category?: string;
+    brand?: string;
+    siteId?: string;
+    averageScore?: number;
+    maxScore?: number;
+    totalChunks?: number;
+    similarity?: number; // Product search uses similarity score
+    score?: number; // Alternative score field
+    // For knowledge posts with chunks
+    chunks?: Array<{
       chunkId: string;
       chunkIndex: number;
       content: string;
       score: number;
     }>;
+    // For products, attributes might be included
+    attributes?: {
+      price?: string;
+      category?: string;
+      brand?: string;
+      rating?: number;
+      availability?: string;
+    };
   }>;
+  data?: {
+    results?: Array<any>; // Some API responses nest results under data
+  };
 }
 
 
@@ -65,8 +101,9 @@ interface EmbeddingSearchResponse {
  */
 const getApiUrl = (): string => {
   const win = window as WindowWithWordPressSettings;
-  const apiUrl = win.LumenSearchSettings?.api_url || Env.API_URL || 'http://localhost:3000';
+  const apiUrl = win.LumenSearchSettings?.api_url || Env.API_URL || 'http://localhost:4000';
   console.log('API URL: ', apiUrl);
+  console.log('LumenSearchSettings:', win.LumenSearchSettings);
   return apiUrl;
 };
 
@@ -95,6 +132,67 @@ const cleanTextContent = (text: string): string => {
       // Trim leading/trailing whitespace
       .trim()
   );
+};
+
+/**
+ * Calculates a lighter/more visible color for the scroll bar based on the text color
+ */
+const calculateScrollbarColor = (textColor: string): string => {
+  // Default fallback
+  const defaultColor = '#888';
+  
+  if (!textColor) return defaultColor;
+  
+  // Handle hex colors
+  if (textColor.startsWith('#')) {
+    const hex = textColor.replace('#', '');
+    const r = parseInt(hex.substr(0, 2), 16);
+    const g = parseInt(hex.substr(2, 2), 16);
+    const b = parseInt(hex.substr(4, 2), 16);
+    
+    // Calculate luminance
+    const luminance = (0.299 * r + 0.587 * g + 0.114 * b) / 255;
+    
+    // If text is dark, use a lighter version for scroll bar
+    // If text is light, use a darker version for scroll bar
+    if (luminance < 0.5) {
+      // Dark text - lighten it for scroll bar (blend with white)
+      const newR = Math.min(255, r + (255 - r) * 0.5);
+      const newG = Math.min(255, g + (255 - g) * 0.5);
+      const newB = Math.min(255, b + (255 - b) * 0.5);
+      return `rgb(${Math.round(newR)}, ${Math.round(newG)}, ${Math.round(newB)})`;
+    } else {
+      // Light text - darken it for scroll bar (blend with black)
+      const newR = r * 0.6;
+      const newG = g * 0.6;
+      const newB = b * 0.6;
+      return `rgb(${Math.round(newR)}, ${Math.round(newG)}, ${Math.round(newB)})`;
+    }
+  }
+  
+  // Handle rgb/rgba colors
+  const rgbMatch = textColor.match(/rgba?\((\d+),\s*(\d+),\s*(\d+)/);
+  if (rgbMatch) {
+    const r = parseInt(rgbMatch[1]);
+    const g = parseInt(rgbMatch[2]);
+    const b = parseInt(rgbMatch[3]);
+    
+    const luminance = (0.299 * r + 0.587 * g + 0.114 * b) / 255;
+    
+    if (luminance < 0.5) {
+      const newR = Math.min(255, r + (255 - r) * 0.5);
+      const newG = Math.min(255, g + (255 - g) * 0.5);
+      const newB = Math.min(255, b + (255 - b) * 0.5);
+      return `rgb(${Math.round(newR)}, ${Math.round(newG)}, ${Math.round(newB)})`;
+    } else {
+      const newR = r * 0.6;
+      const newG = g * 0.6;
+      const newB = b * 0.6;
+      return `rgb(${Math.round(newR)}, ${Math.round(newG)}, ${Math.round(newB)})`;
+    }
+  }
+  
+  return defaultColor;
 };
 
 @Component({
@@ -241,27 +339,79 @@ export class LumenSearch {
 
   /**
    * Convert embedding search response to SearchResult format
+   * Handles both knowledge posts and product results
    */
   private convertEmbeddingResponseToSearchResults = (embeddingResponse: EmbeddingSearchResponse): SearchResult[] => {
-    if (!embeddingResponse.success || !embeddingResponse.results || embeddingResponse.results.length === 0) {
+    // Check for results in different possible locations
+    const results = embeddingResponse.results || embeddingResponse.data?.results || [];
+    
+    if (!embeddingResponse.success && !embeddingResponse.data) {
+      return [];
+    }
+    
+    if (results.length === 0) {
       return [];
     }
 
-    // Convert each result to SearchResult format
-    return embeddingResponse.results.map(result => ({
-      id: result.postId,
-      title: result.postTitle,
-      content: '', // Content will be filled from chunks
-      url: result.postUrl,
-      metadata: {
-        matchingBlocks: result.chunks.map(chunk => ({
-          blockId: chunk.chunkId,
-          content: chunk.content,
-          score: chunk.score,
-          url: result.postUrl,
-        })),
-      },
-    }));
+    // Detect if these are product results or knowledge posts
+    const firstResult = results[0];
+    const isProductSearch = firstResult.type === 'product' || 
+                           firstResult.price !== undefined || 
+                           firstResult.rating !== undefined ||
+                           firstResult.attributes !== undefined;
+
+    // Convert each result based on its type
+    return results.map(result => {
+      if (isProductSearch) {
+        // Handle product results
+        return {
+          id: String(result.id || result.postId || ''),
+          title: result.title || result.postTitle || '',
+          content: result.content || result.description || '',
+          url: result.url || result.postUrl || '',
+          type: 'product' as const,
+          metadata: {
+            matchingBlocks: [{
+              blockId: String(result.id || ''),
+              content: result.content || result.description || '',
+              score: result.similarity || result.score || 0,
+              url: result.url || '',
+            }],
+          },
+          productData: {
+            price: result.price || result.attributes?.price || '',
+            image: result.image || '',
+            rating: result.rating || result.attributes?.rating || 0,
+            inStock: result.in_stock !== undefined ? result.in_stock : 
+                    result.attributes?.availability === 'in_stock',
+            category: result.category || result.attributes?.category || '',
+            brand: result.brand || result.attributes?.brand || '',
+          },
+        };
+      } else {
+        // Handle knowledge post results (backward compatibility)
+        return {
+          id: result.postId || result.id || '',
+          title: result.postTitle || result.title || '',
+          content: '', // Content will be filled from chunks
+          url: result.postUrl || result.url || '',
+          type: 'post' as const,
+          metadata: {
+            matchingBlocks: result.chunks ? result.chunks.map(chunk => ({
+              blockId: chunk.chunkId,
+              content: chunk.content,
+              score: chunk.score,
+              url: result.postUrl || result.url || '',
+            })) : [{
+              blockId: result.id || result.postId || '',
+              content: result.content || '',
+              score: result.similarity || result.score || 0,
+              url: result.postUrl || result.url || '',
+            }],
+          },
+        };
+      }
+    });
   };
 
   /**
@@ -407,10 +557,11 @@ export class LumenSearch {
     console.log('Total result count: ', this.results);
     
     // Apply custom styles from WordPress settings
+    const textColor = this.uiStyles.text_color || '#333333';
     const containerStyle = {
       fontFamily: this.uiStyles.font_family || 'inherit',
       fontSize: this.uiStyles.font_size || '16px',
-      color: this.uiStyles.text_color || '#333333',
+      color: textColor,
       '--primary-color': this.uiStyles.primary_color || '#0073aa',
       '--background-color': this.uiStyles.background_color || '#ffffff',
       '--border-color': this.uiStyles.border_color || '#dddddd',
@@ -422,6 +573,7 @@ export class LumenSearch {
       '--max-width': this.uiStyles.max_width || '800px',
       '--input-height': this.uiStyles.input_height || '45px',
       '--results-max-height': this.uiStyles.results_max_height || '400px',
+      '--scrollbar-color': calculateScrollbarColor(textColor),
     };
     
     // For embedded mode (e.g., admin preview), render the search directly
@@ -521,6 +673,15 @@ export class LumenSearch {
                                   resultTitle={result.title}
                                   resultSnippet={cleanTextContent(block.content)}
                                   resultUrl={result.url}
+                                  resultType={result.type || 'post'}
+                                  similarityScore={block.score}
+                                  // Product-specific props (will be undefined for posts)
+                                  productPrice={result.productData?.price}
+                                  productImage={result.productData?.image}
+                                  productRating={result.productData?.rating}
+                                  productInStock={result.productData?.inStock}
+                                  productCategory={result.productData?.category}
+                                  productBrand={result.productData?.brand}
                                 ></search-result>
                               ))}
                             </div>
@@ -661,6 +822,15 @@ export class LumenSearch {
                                     resultTitle={result.title}
                                     resultSnippet={cleanTextContent(block.content)}
                                     resultUrl={result.url}
+                                    resultType={result.type || 'post'}
+                                    similarityScore={block.score}
+                                    // Product-specific props (will be undefined for posts)
+                                    productPrice={result.productData?.price}
+                                    productImage={result.productData?.image}
+                                    productRating={result.productData?.rating}
+                                    productInStock={result.productData?.inStock}
+                                    productCategory={result.productData?.category}
+                                    productBrand={result.productData?.brand}
                                   ></search-result>
                                 ))}
                               </div>

@@ -24,10 +24,18 @@ export namespace Components {
         "selectPlaceholder": (subtitle: string) => void;
     }
     interface SearchResult {
+        "productBrand": string;
+        "productCategory": string;
+        "productImage": string;
+        "productInStock": boolean;
+        "productPrice": string;
+        "productRating": number;
         "resultId": string;
         "resultSnippet": string;
         "resultTitle": string;
+        "resultType": 'post' | 'product';
         "resultUrl": string;
+        "similarityScore": number;
     }
 }
 declare global {
@@ -79,10 +87,18 @@ declare namespace LocalJSX {
         "selectPlaceholder"?: (subtitle: string) => void;
     }
     interface SearchResult {
+        "productBrand"?: string;
+        "productCategory"?: string;
+        "productImage"?: string;
+        "productInStock"?: boolean;
+        "productPrice"?: string;
+        "productRating"?: number;
         "resultId"?: string;
         "resultSnippet"?: string;
         "resultTitle"?: string;
+        "resultType"?: 'post' | 'product';
         "resultUrl"?: string;
+        "similarityScore"?: number;
     }
     interface IntrinsicElements {
         "app-root": AppRoot;
