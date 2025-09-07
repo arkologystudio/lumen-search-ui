@@ -95,7 +95,6 @@ interface EmbeddingSearchResponse {
   };
 }
 
-
 /**
  * Gets the API URL from WordPress settings or falls back to environment variable
  */
@@ -106,7 +105,6 @@ const getApiUrl = (): string => {
   console.log('LumenSearchSettings:', win.LumenSearchSettings);
   return apiUrl;
 };
-
 
 /**
  * Removes HTML tags and non-natural language characters from text
@@ -140,19 +138,19 @@ const cleanTextContent = (text: string): string => {
 const calculateScrollbarColor = (textColor: string): string => {
   // Default fallback
   const defaultColor = '#888';
-  
+
   if (!textColor) return defaultColor;
-  
+
   // Handle hex colors
   if (textColor.startsWith('#')) {
     const hex = textColor.replace('#', '');
     const r = parseInt(hex.substr(0, 2), 16);
     const g = parseInt(hex.substr(2, 2), 16);
     const b = parseInt(hex.substr(4, 2), 16);
-    
+
     // Calculate luminance
     const luminance = (0.299 * r + 0.587 * g + 0.114 * b) / 255;
-    
+
     // If text is dark, use a lighter version for scroll bar
     // If text is light, use a darker version for scroll bar
     if (luminance < 0.5) {
@@ -169,16 +167,16 @@ const calculateScrollbarColor = (textColor: string): string => {
       return `rgb(${Math.round(newR)}, ${Math.round(newG)}, ${Math.round(newB)})`;
     }
   }
-  
+
   // Handle rgb/rgba colors
   const rgbMatch = textColor.match(/rgba?\((\d+),\s*(\d+),\s*(\d+)/);
   if (rgbMatch) {
     const r = parseInt(rgbMatch[1]);
     const g = parseInt(rgbMatch[2]);
     const b = parseInt(rgbMatch[3]);
-    
+
     const luminance = (0.299 * r + 0.587 * g + 0.114 * b) / 255;
-    
+
     if (luminance < 0.5) {
       const newR = Math.min(255, r + (255 - r) * 0.5);
       const newG = Math.min(255, g + (255 - g) * 0.5);
@@ -191,7 +189,7 @@ const calculateScrollbarColor = (textColor: string): string => {
       return `rgb(${Math.round(newR)}, ${Math.round(newG)}, ${Math.round(newB)})`;
     }
   }
-  
+
   return defaultColor;
 };
 
@@ -225,7 +223,7 @@ export class LumenSearch {
 
   private loadSettingsFromWindow() {
     const win = window as WindowWithWordPressSettings;
-    
+
     if (win.LumenSearchSettings) {
       if (win.LumenSearchSettings.placeholders !== undefined) {
         this.placeholderItems = win.LumenSearchSettings.placeholders;
@@ -242,9 +240,9 @@ export class LumenSearch {
   async componentWillLoad() {
     // Try to load settings from WordPress if available
     this.loadSettingsFromWindow();
-    
+
     const win = window as WindowWithWordPressSettings;
-    
+
     // If we have a WordPress REST URL, try to fetch fresh settings
     if (win.LumenSearchSettings?.wp_rest_url) {
       try {
@@ -259,7 +257,7 @@ export class LumenSearch {
         console.log('Could not fetch WordPress settings, using defaults');
       }
     }
-    
+
     // Only use default placeholders if placeholders are enabled and none are explicitly set
     if (this.placeholdersEnabled && (!this.placeholderItems || this.placeholderItems.length === 0)) {
       this.placeholderItems = [
@@ -287,12 +285,12 @@ export class LumenSearch {
   componentWillRender() {
     // Re-check settings before each render (for admin preview updates)
     this.loadSettingsFromWindow();
-    
+
     console.log('LumenSearch rendering with:', {
       placeholdersEnabled: this.placeholdersEnabled,
       placeholderItems: this.placeholderItems,
       query: this.query,
-      hasSearched: this.hasSearched
+      hasSearched: this.hasSearched,
     });
   }
 
@@ -336,7 +334,6 @@ export class LumenSearch {
     this.debounceTimer = window.setTimeout(this.performSearch, 500);
   };
 
-
   /**
    * Convert embedding search response to SearchResult format
    * Handles both knowledge posts and product results
@@ -344,21 +341,18 @@ export class LumenSearch {
   private convertEmbeddingResponseToSearchResults = (embeddingResponse: EmbeddingSearchResponse): SearchResult[] => {
     // Check for results in different possible locations
     const results = embeddingResponse.results || embeddingResponse.data?.results || [];
-    
+
     if (!embeddingResponse.success && !embeddingResponse.data) {
       return [];
     }
-    
+
     if (results.length === 0) {
       return [];
     }
 
     // Detect if these are product results or knowledge posts
     const firstResult = results[0];
-    const isProductSearch = firstResult.type === 'product' || 
-                           firstResult.price !== undefined || 
-                           firstResult.rating !== undefined ||
-                           firstResult.attributes !== undefined;
+    const isProductSearch = firstResult.type === 'product' || firstResult.price !== undefined || firstResult.rating !== undefined || firstResult.attributes !== undefined;
 
     // Convert each result based on its type
     return results.map(result => {
@@ -371,19 +365,20 @@ export class LumenSearch {
           url: result.url || result.postUrl || '',
           type: 'product' as const,
           metadata: {
-            matchingBlocks: [{
-              blockId: String(result.id || ''),
-              content: result.content || result.description || '',
-              score: result.similarity || result.score || 0,
-              url: result.url || '',
-            }],
+            matchingBlocks: [
+              {
+                blockId: String(result.id || ''),
+                content: result.content || result.description || '',
+                score: result.similarity || result.score || 0,
+                url: result.url || '',
+              },
+            ],
           },
           productData: {
             price: result.price || result.attributes?.price || '',
             image: result.image || '',
             rating: result.rating || result.attributes?.rating || 0,
-            inStock: result.in_stock !== undefined ? result.in_stock : 
-                    result.attributes?.availability === 'in_stock',
+            inStock: result.in_stock !== undefined ? result.in_stock : result.attributes?.availability === 'in_stock',
             category: result.category || result.attributes?.category || '',
             brand: result.brand || result.attributes?.brand || '',
           },
@@ -397,17 +392,21 @@ export class LumenSearch {
           url: result.postUrl || result.url || '',
           type: 'post' as const,
           metadata: {
-            matchingBlocks: result.chunks ? result.chunks.map(chunk => ({
-              blockId: chunk.chunkId,
-              content: chunk.content,
-              score: chunk.score,
-              url: result.postUrl || result.url || '',
-            })) : [{
-              blockId: result.id || result.postId || '',
-              content: result.content || '',
-              score: result.similarity || result.score || 0,
-              url: result.postUrl || result.url || '',
-            }],
+            matchingBlocks: result.chunks
+              ? result.chunks.map(chunk => ({
+                  blockId: chunk.chunkId,
+                  content: chunk.content,
+                  score: chunk.score,
+                  url: result.postUrl || result.url || '',
+                }))
+              : [
+                  {
+                    blockId: result.id || result.postId || '',
+                    content: result.content || '',
+                    score: result.similarity || result.score || 0,
+                    url: result.postUrl || result.url || '',
+                  },
+                ],
           },
         };
       }
@@ -460,10 +459,11 @@ export class LumenSearch {
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${token}`,
         },
-        body: JSON.stringify({ 
-          query: this.query, 
+        body: JSON.stringify({
+          query: this.query,
           site_id: this.siteId || (window as WindowWithWordPressSettings).LumenSearchSettings?.site_id || 'default-site',
-          topK: this.topK || (window as WindowWithWordPressSettings).LumenSearchSettings?.topK || 10
+          topK: this.topK || (window as WindowWithWordPressSettings).LumenSearchSettings?.topK || 10,
+          min_score: 0.77, // Only return results with at least 50% similarity
         }), // Request with correct format for backend API
       });
 
@@ -473,7 +473,7 @@ export class LumenSearch {
 
       // Parse the search response
       const embeddingData = (await searchRes.json()) as EmbeddingSearchResponse;
-      
+
       // Add debug logging
       console.log('Raw API response:', embeddingData);
       console.log('Has success?', embeddingData.success);
@@ -555,13 +555,13 @@ export class LumenSearch {
     // Count total results across all matching blocks
     const totalResultCount = this.results.reduce((count, result) => count + result.metadata.matchingBlocks.length, 0);
     console.log('Total result count: ', this.results);
-    
+
     // Apply custom styles from WordPress settings
     const textColor = this.uiStyles.text_color || '#333333';
     const containerStyle = {
-      fontFamily: this.uiStyles.font_family || 'inherit',
-      fontSize: this.uiStyles.font_size || '16px',
-      color: textColor,
+      'fontFamily': this.uiStyles.font_family || 'inherit',
+      'fontSize': this.uiStyles.font_size || '16px',
+      'color': textColor,
       '--primary-color': this.uiStyles.primary_color || '#0073aa',
       '--background-color': this.uiStyles.background_color || '#ffffff',
       '--border-color': this.uiStyles.border_color || '#dddddd',
@@ -575,7 +575,7 @@ export class LumenSearch {
       '--results-max-height': this.uiStyles.results_max_height || '400px',
       '--scrollbar-color': calculateScrollbarColor(textColor),
     };
-    
+
     // For embedded mode (e.g., admin preview), render the search directly
     if (this.displayMode === 'embedded') {
       return (
@@ -619,8 +619,8 @@ export class LumenSearch {
                 borderRadius: this.uiStyles.border_radius || '4px',
               }}
             />
-            <button 
-              class="search-button" 
+            <button
+              class="search-button"
               onClick={() => this.performSearch()}
               style={{
                 backgroundColor: this.uiStyles.button_bg || '#0073aa',
@@ -631,33 +631,32 @@ export class LumenSearch {
               Search
             </button>
           </div>
-          
+
           {/* Results or placeholders below the search bar - only show if there's content */}
-          {this.isOpen && (
-            this.isLoading || 
-            this.hasSearched || 
-            (this.placeholdersEnabled && this.placeholderItems && this.placeholderItems.length > 0)
-          ) && (
-            <div class="search-results-dropdown" style={{ 
-              maxHeight: this.uiStyles.results_max_height || '400px',
-              backgroundColor: this.uiStyles.background_color || '#ffffff',
-              border: `${this.uiStyles.border_width || '1px'} solid ${this.uiStyles.border_color || '#dddddd'}`,
-              borderRadius: this.uiStyles.border_radius || '4px',
-              marginTop: '10px'
-            }}>
+          {this.isOpen && (this.isLoading || this.hasSearched || (this.placeholdersEnabled && this.placeholderItems && this.placeholderItems.length > 0)) && (
+            <div
+              class="search-results-dropdown"
+              style={{
+                maxHeight: this.uiStyles.results_max_height || '400px',
+                backgroundColor: this.uiStyles.background_color || '#ffffff',
+                border: `${this.uiStyles.border_width || '1px'} solid ${this.uiStyles.border_color || '#dddddd'}`,
+                borderRadius: this.uiStyles.border_radius || '4px',
+                marginTop: '10px',
+              }}
+            >
               {this.isLoading ? (
                 <div class="search-status">Searching...</div>
               ) : (
                 <div class="search-results-container">
                   {!this.hasSearched && !this.query && this.placeholdersEnabled && this.placeholderItems && this.placeholderItems.length > 0 && (
-                    <search-placeholders 
-                      isVisible={true} 
+                    <search-placeholders
+                      isVisible={true}
                       selectPlaceholder={this.handlePlaceholderSelected}
                       placeholders={this.placeholderItems}
                       customStyles={this.uiStyles}
                     ></search-placeholders>
                   )}
-                  
+
                   {this.hasSearched && (
                     <div>
                       {this.results.length > 0 ? (
@@ -699,7 +698,7 @@ export class LumenSearch {
         </div>
       );
     }
-    
+
     // Default icon mode
     return (
       <div class="lumen-search-container" style={containerStyle}>
@@ -728,8 +727,8 @@ export class LumenSearch {
         {/* Search Modal */}
         {this.isOpen && (
           <div class="search-modal-backdrop" onClick={this.handleBackdropClick} role="dialog" aria-modal="true" aria-labelledby="search-modal-title">
-            <div 
-              class="search-modal-content" 
+            <div
+              class="search-modal-content"
               ref={el => (this.modalRef = el as HTMLDivElement)}
               style={{
                 maxWidth: this.uiStyles.max_width || '800px',
@@ -797,8 +796,8 @@ export class LumenSearch {
                   <div class="search-results-container">
                     {/* Show placeholders when no search has been performed and they are enabled with content */}
                     {!this.hasSearched && !this.query && this.placeholdersEnabled && this.placeholderItems && this.placeholderItems.length > 0 && (
-                      <search-placeholders 
-                        isVisible={true} 
+                      <search-placeholders
+                        isVisible={true}
                         selectPlaceholder={this.handlePlaceholderSelected}
                         placeholders={this.placeholderItems}
                         customStyles={this.uiStyles}
