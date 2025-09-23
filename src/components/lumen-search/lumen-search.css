@@ -341,3 +341,206 @@
   outline: none;
   border: 1px solid #000;
 }
+
+/* ===== Azure AI Search Features ===== */
+
+/* Search controls wrapper */
+.search-controls-wrapper {
+  width: 100%;
+}
+
+.search-controls-row {
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  padding: 6px 0 0 0;
+  margin-top: 6px;
+  margin-bottom: 8px;
+}
+
+.search-controls-row.modal {
+  padding: 6px 16px 8px 16px;
+  border-bottom: 1px solid var(--border-color, #ddd);
+  margin-bottom: 0;
+}
+
+
+/* Search suggestions dropdown */
+.search-suggestions {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  right: 0;
+  background: var(--background-color, #fff);
+  border: var(--border-width, 1px) solid var(--border-color, #ddd);
+  border-radius: var(--border-radius, 4px);
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+  z-index: 1000;
+  max-height: 200px;
+  overflow-y: auto;
+}
+
+.suggestion-item {
+  padding: 12px 16px;
+  cursor: pointer;
+  border-bottom: 1px solid #f0f0f0;
+  transition: background-color 0.2s ease;
+}
+
+.suggestion-item:hover {
+  background-color: #f8f9fa;
+}
+
+.suggestion-item:last-child {
+  border-bottom: none;
+}
+
+/* Faceted search layout */
+.search-results-with-facets {
+  display: flex;
+  gap: 20px;
+  width: 100%;
+}
+
+.search-results-with-facets.modal {
+  flex-direction: row;
+}
+
+/* No facets layout (knowledge search) */
+.search-results-no-facets {
+  width: 100%;
+}
+
+.search-results-no-facets .search-results-main {
+  width: 100%;
+}
+
+/* Facet filters sidebar */
+.facet-filters {
+  flex: 0 0 250px;
+  background: #f8f9fa;
+  border: 1px solid var(--border-color, #ddd);
+  border-radius: var(--border-radius, 4px);
+  padding: 16px;
+  max-height: 400px;
+  overflow-y: auto;
+}
+
+.facet-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 16px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid #e0e0e0;
+}
+
+.facet-header h4 {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--text-color, #333);
+}
+
+.clear-filters {
+  background: none;
+  border: none;
+  color: var(--primary-color, #0073aa);
+  font-size: 12px;
+  cursor: pointer;
+  text-decoration: underline;
+  padding: 0;
+}
+
+.clear-filters:hover {
+  color: var(--button-hover-bg, #005a87);
+}
+
+.facet-group {
+  margin-bottom: 20px;
+}
+
+.facet-group h5 {
+  margin: 0 0 8px 0;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text-color, #333);
+}
+
+.facet-option {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 0;
+  cursor: pointer;
+  font-size: 13px;
+  color: var(--text-color, #333);
+}
+
+.facet-option input[type="checkbox"] {
+  margin: 0;
+  cursor: pointer;
+}
+
+.facet-option:hover {
+  color: var(--primary-color, #0073aa);
+}
+
+.facet-loading {
+  text-align: center;
+  padding: 20px;
+  color: #666;
+  font-style: italic;
+  font-size: 14px;
+}
+
+/* Main results area when facets are present */
+.search-results-main {
+  flex: 1;
+  min-width: 0; /* Allows text to wrap */
+}
+
+/* Results count styling */
+.search-results-count {
+  margin-bottom: 16px;
+  padding: 8px 0;
+  font-size: 14px;
+  color: #666;
+  border-bottom: 1px solid #e0e0e0;
+}
+
+/* Responsive design for facets */
+@media (max-width: 768px) {
+  .search-results-with-facets {
+    flex-direction: column;
+  }
+  
+  .facet-filters {
+    flex: none;
+    max-height: 200px;
+    margin-bottom: 16px;
+  }
+  
+  .search-controls-row {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 8px;
+  }
+}
+
+/* Enhanced suggestions positioning */
+.search-input-wrapper.embedded {
+  position: relative;
+}
+
+.search-input-wrapper.embedded .search-suggestions {
+  margin-top: 4px;
+}
+
+/* Modal specific adjustments */
+.search-modal-content .search-suggestions {
+  position: relative;
+  margin-top: 8px;
+  margin-left: 16px;
+  margin-right: 16px;
+}

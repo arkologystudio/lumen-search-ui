@@ -13,7 +13,10 @@ export namespace Components {
     interface LumenSearch {
         "apiEndpoint": string;
         "apiKey": string;
+        "contentType": 'posts' | 'products' | 'all';
         "displayMode": 'icon' | 'embedded';
+        "enableFacets": boolean;
+        "enableSuggestions": boolean;
         "siteId": string;
         "topK": number;
     }
@@ -76,7 +79,10 @@ declare namespace LocalJSX {
     interface LumenSearch {
         "apiEndpoint"?: string;
         "apiKey"?: string;
+        "contentType"?: 'posts' | 'products' | 'all';
         "displayMode"?: 'icon' | 'embedded';
+        "enableFacets"?: boolean;
+        "enableSuggestions"?: boolean;
         "siteId"?: string;
         "topK"?: number;
     }

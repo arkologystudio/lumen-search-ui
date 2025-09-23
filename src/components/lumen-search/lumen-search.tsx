@@ -1,11 +1,8 @@
 import { Component, h, State, Listen, Prop } from '@stencil/core';
-import { AUTH_ROUTE, SEARCH_ROUTE } from '../../constants';
-import { Env } from '@stencil/core';
 
 // Define a type for WordPress global settings
 interface WindowWithWordPressSettings extends Window {
   LumenSearchSettings?: {
-    api_url: string;
     wp_rest_url?: string;
     site_id?: string;
     topK?: number;
@@ -15,6 +12,22 @@ interface WindowWithWordPressSettings extends Window {
       subtitle: string;
     }>;
     ui_styles?: any;
+    // Azure AI Search settings
+    content_type?: 'posts' | 'products' | 'all';
+    // Product search settings
+    enable_faceted_search?: boolean;
+    facet_config?: {
+      brand?: boolean;
+      category?: boolean;
+      price?: boolean;
+      rating?: boolean;
+      availability?: boolean;
+    };
+    available_facets?: {
+      brands: string[];
+      categories: string[];
+      price_range: { min: number; max: number };
+    };
   };
 }
 
@@ -89,21 +102,39 @@ interface EmbeddingSearchResponse {
       rating?: number;
       availability?: string;
     };
+    highlights?: string[]; // Azure search highlights
   }>;
   data?: {
     results?: Array<any>; // Some API responses nest results under data
+    facets?: any; // Facets from API response
   };
+  // Azure search response structure
+  facets?: {
+    brands?: Array<{ value: string; count: number }>;
+    categories?: Array<{ value: string; count: number }>;
+    availability?: Array<{ value: string; count: number }>;
+    price_ranges?: Array<{ range: string; count: number }>;
+    ratings?: Array<{ value: number; count: number }>;
+  };
+  total?: number;
+  suggestions?: string[];
 }
 
 /**
- * Gets the API URL from WordPress settings or falls back to environment variable
+ * Gets the WordPress REST API URL for secure search proxy
  */
-const getApiUrl = (): string => {
+const getWordPressRestUrl = (): string => {
   const win = window as WindowWithWordPressSettings;
-  const apiUrl = win.LumenSearchSettings?.api_url || Env.API_URL || 'http://localhost:4000';
-  console.log('API URL: ', apiUrl);
-  console.log('LumenSearchSettings:', win.LumenSearchSettings);
-  return apiUrl;
+  const wpRestUrl = win.LumenSearchSettings?.wp_rest_url;
+  if (wpRestUrl) {
+    console.log('WordPress REST URL: ', wpRestUrl);
+    return wpRestUrl;
+  }
+  // Fallback: try to detect WordPress REST URL from current page
+  const currentUrl = window.location.origin;
+  const fallbackUrl = `${currentUrl}/wp-json/lumen-search/v1`;
+  console.log('Using fallback WordPress REST URL: ', fallbackUrl);
+  return fallbackUrl;
 };
 
 /**
@@ -204,6 +235,9 @@ export class LumenSearch {
   @Prop() apiEndpoint: string;
   @Prop() topK: number = 10;
   @Prop() displayMode: 'icon' | 'embedded' = 'icon'; // Add display mode prop
+  @Prop() contentType: 'posts' | 'products' | 'all' = 'all'; // Content type prop
+  @Prop() enableFacets: boolean = false; // Faceted search toggle
+  @Prop() enableSuggestions: boolean = false; // Search suggestions disabled
   @State() query: string = '';
   @State() results: SearchResult[] = [];
   @State() isOpen: boolean = false;
@@ -213,6 +247,10 @@ export class LumenSearch {
   @State() placeholderItems: any[] = [];
   @State() uiStyles: any = {};
   @State() placeholdersEnabled: boolean = true;
+  @State() availableFacets: any = {};
+  @State() activeFacets: any = {};
+  @State() suggestions: string[] = [];
+  @State() showSuggestions: boolean = false;
 
   /**
    * We'll store a numeric ID for the debounce timer so we can clear it.
@@ -233,6 +271,21 @@ export class LumenSearch {
       }
       if (typeof win.LumenSearchSettings.enable_placeholders === 'boolean') {
         this.placeholdersEnabled = win.LumenSearchSettings.enable_placeholders;
+      }
+      
+      // Load Azure AI Search settings
+      if (win.LumenSearchSettings.content_type) {
+        this.contentType = win.LumenSearchSettings.content_type;
+      }
+      if (typeof win.LumenSearchSettings.enable_faceted_search === 'boolean') {
+        this.enableFacets = win.LumenSearchSettings.enable_faceted_search;
+      }
+      // Also check for the WooCommerce version that uses enable_faceted_search
+      if (win.LumenSearchSettings.content_type === 'products' && typeof win.LumenSearchSettings.enable_faceted_search === 'boolean') {
+        this.enableFacets = win.LumenSearchSettings.enable_faceted_search;
+      }
+      if (win.LumenSearchSettings.available_facets) {
+        this.availableFacets = win.LumenSearchSettings.available_facets;
       }
     }
   }
@@ -270,7 +323,7 @@ export class LumenSearch {
           subtitle: '¿Qué es un modelo de escucha?',
         },
         {
-          title: 'Find results with semantic search',
+          title: 'Find results with vector search',
           subtitle: 'How to orient towards justice?',
         },
       ];
@@ -328,6 +381,13 @@ export class LumenSearch {
       this.showPlaceholders = false;
     }
 
+    // Get suggestions if enabled
+    if (this.enableSuggestions && inputEl.value.trim().length >= 2) {
+      this.getSuggestions(inputEl.value.trim());
+    } else {
+      this.showSuggestions = false;
+    }
+
     if (this.debounceTimer) {
       clearTimeout(this.debounceTimer);
     }
@@ -342,7 +402,7 @@ export class LumenSearch {
     // Check for results in different possible locations
     const results = embeddingResponse.results || embeddingResponse.data?.results || [];
 
-    if (!embeddingResponse.success && !embeddingResponse.data) {
+    if (embeddingResponse.success === false && !embeddingResponse.data) {
       return [];
     }
 
@@ -413,6 +473,7 @@ export class LumenSearch {
     });
   };
 
+
   /**
    * Perform the actual search by sending a POST request to our local
    * API endpoint (localhost:3000/api/embedding/search). This route and
@@ -430,41 +491,32 @@ export class LumenSearch {
     try {
       this.isLoading = true;
       this.showPlaceholders = false;
-      const apiUrl = getApiUrl();
-      // Use API URL from WordPress settings if available, otherwise use API_ROUTE from constants
-      const authEndpoint = `${apiUrl}${AUTH_ROUTE}`;
-      console.log('Auth endpoint: ', authEndpoint);
-      const authResponse = await fetch(authEndpoint, {
+      
+      // Use secure WordPress REST API endpoint
+      const wpRestUrl = getWordPressRestUrl();
+      const searchEndpoint = `${wpRestUrl}/search`;
+      
+      const win = window as WindowWithWordPressSettings;
+      
+      // Simple search payload
+      const searchPayload = {
+        query: this.query,
+        limit: this.topK || win.LumenSearchSettings?.topK || 10,
+        content_type: this.contentType || 'posts'
+      };
+
+      console.log('Performing secure search on endpoint: ', searchEndpoint);
+      console.log('Search payload: ', searchPayload);
+      
+      // Use WordPress REST API (no API key needed - handled server-side)
+      const searchHeaders = {
+        'Content-Type': 'application/json',
+      };
+      
+      const searchRes = await fetch(searchEndpoint, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ query: this.query }),
-      });
-
-      if (!authResponse.ok) {
-        throw new Error(`HTTP error! status: ${authResponse.status}`);
-      }
-
-      // Parse the auth response to get the token
-      const authData = await authResponse.json();
-      const token = authData.token || authData;
-
-      const embeddingSearchEndpoint = `${apiUrl}${SEARCH_ROUTE}`;
-
-      console.log('Performing search on endpoint: ', embeddingSearchEndpoint);
-      const searchRes = await fetch(embeddingSearchEndpoint, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`,
-        },
-        body: JSON.stringify({
-          query: this.query,
-          site_id: this.siteId || (window as WindowWithWordPressSettings).LumenSearchSettings?.site_id || 'default-site',
-          topK: this.topK || (window as WindowWithWordPressSettings).LumenSearchSettings?.topK || 10,
-          min_score: 0.77, // Only return results with at least 50% similarity
-        }), // Request with correct format for backend API
+        headers: searchHeaders,
+        body: JSON.stringify(searchPayload),
       });
 
       if (!searchRes.ok) {
@@ -479,7 +531,7 @@ export class LumenSearch {
       console.log('Has success?', embeddingData.success);
       console.log('Results length:', embeddingData.results?.length);
 
-      if (!embeddingData.success || !embeddingData.results || embeddingData.results.length === 0) {
+      if ((embeddingData.success === false) || !embeddingData.results || embeddingData.results.length === 0) {
         console.log('No results found in response');
         this.results = [];
         this.hasSearched = true;
@@ -489,6 +541,12 @@ export class LumenSearch {
       // Convert embedding response directly to SearchResult format
       this.results = this.convertEmbeddingResponseToSearchResults(embeddingData);
       console.log('Converted results:', this.results);
+
+      // Update available facets if this is a faceted search
+      if (embeddingData.facets && this.enableFacets) {
+        this.availableFacets = embeddingData.facets;
+        console.log('Updated facets:', this.availableFacets);
+      }
 
       this.hasSearched = true;
       console.log('Search results: ', this.results);
@@ -530,6 +588,65 @@ export class LumenSearch {
     }
   };
 
+
+  /**
+   * Handle facet filter changes
+   */
+  private handleFacetChange = (facetType: string, value: string, checked: boolean): void => {
+    if (!this.activeFacets[facetType]) {
+      this.activeFacets[facetType] = [];
+    }
+    
+    if (checked) {
+      if (!this.activeFacets[facetType].includes(value)) {
+        this.activeFacets[facetType].push(value);
+      }
+    } else {
+      const index = this.activeFacets[facetType].indexOf(value);
+      if (index > -1) {
+        this.activeFacets[facetType].splice(index, 1);
+      }
+    }
+    
+    // Re-trigger search with new filters
+    if (this.query.trim().length > 0) {
+      this.performSearch();
+    }
+  };
+
+  /**
+   * Clear all facet filters
+   */
+  private clearFacets = (): void => {
+    this.activeFacets = {};
+    if (this.query.trim().length > 0) {
+      this.performSearch();
+    }
+  };
+
+  /**
+   * Get search suggestions as user types
+   * Disabled - suggestions functionality has been removed
+   */
+  private getSuggestions = async (_query: string): Promise<void> => {
+    // Suggestions functionality has been disabled
+    this.suggestions = [];
+    this.showSuggestions = false;
+    return;
+  };
+
+  /**
+   * Handle suggestion selection
+   */
+  private selectSuggestion = (suggestion: string): void => {
+    this.query = suggestion;
+    if (this.inputRef) {
+      this.inputRef.value = suggestion;
+    }
+    this.showSuggestions = false;
+    this.performSearch();
+  };
+
   private closeModal = (): void => {
     this.isOpen = false;
     this.query = '';
@@ -549,6 +666,137 @@ export class LumenSearch {
   disconnectedCallback() {
     // Ensure we remove the class if component is unmounted while modal is open
     document.body.classList.remove('lumen-search-modal-open');
+  }
+
+
+  /**
+   * Render search suggestions dropdown
+   */
+  private renderSuggestions() {
+    if (!this.showSuggestions || this.suggestions.length === 0) {
+      return null;
+    }
+
+    return (
+      <div class="search-suggestions">
+        {this.suggestions.map(suggestion => (
+          <div 
+            class="suggestion-item"
+            onClick={() => this.selectSuggestion(suggestion)}
+          >
+            {suggestion}
+          </div>
+        ))}
+      </div>
+    );
+  }
+
+  /**
+   * Render faceted search filters
+   */
+  private renderFacetFilters() {
+    if (!this.enableFacets || this.contentType !== 'products') {
+      return null;
+    }
+    
+    // Show facets even if no availableFacets yet, for better UX
+    if (!this.availableFacets || Object.keys(this.availableFacets).length === 0) {
+      return (
+        <div class="facet-filters">
+          <div class="facet-header">
+            <h4>Filter Results</h4>
+          </div>
+          <div class="facet-loading">
+            <p>Filters will appear after searching...</p>
+          </div>
+        </div>
+      );
+    }
+
+    const hasActiveFacets = Object.keys(this.activeFacets).some(key => 
+      this.activeFacets[key] && this.activeFacets[key].length > 0
+    );
+
+    return (
+      <div class="facet-filters">
+        <div class="facet-header">
+          <h4>Filter Results</h4>
+          {hasActiveFacets && (
+            <button class="clear-filters" onClick={this.clearFacets}>
+              Clear All
+            </button>
+          )}
+        </div>
+
+        {/* Brand filter */}
+        {this.availableFacets.brands && this.availableFacets.brands.length > 0 && (
+          <div class="facet-group">
+            <h5>Brand</h5>
+            {this.availableFacets.brands.slice(0, 5).map(brand => (
+              <label class="facet-option">
+                <input
+                  type="checkbox"
+                  checked={this.activeFacets.brand && this.activeFacets.brand.includes(brand.value)}
+                  onChange={(e) => this.handleFacetChange('brand', brand.value, (e.target as HTMLInputElement).checked)}
+                />
+                {brand.value} ({brand.count})
+              </label>
+            ))}
+          </div>
+        )}
+
+        {/* Category filter */}
+        {this.availableFacets.categories && this.availableFacets.categories.length > 0 && (
+          <div class="facet-group">
+            <h5>Category</h5>
+            {this.availableFacets.categories.slice(0, 5).map(category => (
+              <label class="facet-option">
+                <input
+                  type="checkbox"
+                  checked={this.activeFacets.category && this.activeFacets.category.includes(category.value)}
+                  onChange={(e) => this.handleFacetChange('category', category.value, (e.target as HTMLInputElement).checked)}
+                />
+                {category.value} ({category.count})
+              </label>
+            ))}
+          </div>
+        )}
+
+        {/* Availability filter */}
+        {this.availableFacets.availability && this.availableFacets.availability.length > 0 && (
+          <div class="facet-group">
+            <h5>Availability</h5>
+            {this.availableFacets.availability.map(availability => (
+              <label class="facet-option">
+                <input
+                  type="checkbox"
+                  checked={this.activeFacets.availability && this.activeFacets.availability.includes(availability.value)}
+                  onChange={(e) => this.handleFacetChange('availability', availability.value, (e.target as HTMLInputElement).checked)}
+                />
+                {availability.value} ({availability.count})
+              </label>
+            ))}
+          </div>
+        )}
+
+        {/* Rating filter */}
+        {this.availableFacets.ratings && this.availableFacets.ratings.length > 0 && (
+          <div class="facet-group">
+            <h5>Rating</h5>
+            {this.availableFacets.ratings.map(rating => (
+              <label class="facet-option">
+                <input
+                  type="checkbox"
+                  checked={this.activeFacets.rating && this.activeFacets.rating.includes(rating.value.toString())}
+                  onChange={(e) => this.handleFacetChange('rating', rating.value.toString(), (e.target as HTMLInputElement).checked)}
+                />
+                {rating.value}+ Stars ({rating.count})
+              </label>
+            ))}
+          </div>
+        )}
+      </div>
+    );
   }
 
   render() {
@@ -580,57 +828,66 @@ export class LumenSearch {
     if (this.displayMode === 'embedded') {
       return (
         <div class="lumen-search-embedded" style={containerStyle}>
-          <div class="search-input-wrapper embedded">
-            <svg
-              class="search-icon"
-              xmlns="http://www.w3.org/2000/svg"
-              viewBox="0 0 24 24"
-              width="18"
-              height="18"
-              fill="none"
-              stroke="currentColor"
-              stroke-width="2"
-              stroke-linecap="round"
-              stroke-linejoin="round"
-            >
-              <circle cx="11" cy="11" r="8"></circle>
-              <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
-            </svg>
-            <input
-              type="text"
-              class="search-input"
-              placeholder="Search..."
-              value={this.query}
-              onInput={this.handleInput}
-              onFocus={() => {
-                // Only open if we have content to show
-                if (this.hasSearched || (this.placeholdersEnabled && this.placeholderItems && this.placeholderItems.length > 0)) {
-                  this.isOpen = true;
-                }
-              }}
-              aria-label="Search"
-              style={{
-                fontFamily: this.uiStyles.font_family || 'inherit',
-                fontSize: this.uiStyles.font_size || '16px',
-                color: this.uiStyles.text_color || '#333333',
-                backgroundColor: this.uiStyles.background_color || '#ffffff',
-                height: this.uiStyles.input_height || '45px',
-                border: `${this.uiStyles.border_width || '1px'} solid ${this.uiStyles.border_color || '#dddddd'}`,
-                borderRadius: this.uiStyles.border_radius || '4px',
-              }}
-            />
-            <button
-              class="search-button"
-              onClick={() => this.performSearch()}
-              style={{
-                backgroundColor: this.uiStyles.button_bg || '#0073aa',
-                color: this.uiStyles.button_text_color || '#ffffff',
-                borderRadius: this.uiStyles.border_radius || '4px',
-              }}
-            >
-              Search
-            </button>
+          <div class="search-controls-wrapper">
+            <div class="search-input-wrapper embedded">
+              <svg
+                class="search-icon"
+                xmlns="http://www.w3.org/2000/svg"
+                viewBox="0 0 24 24"
+                width="18"
+                height="18"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+              >
+                <circle cx="11" cy="11" r="8"></circle>
+                <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+              </svg>
+              <input
+                type="text"
+                class="search-input"
+                placeholder={this.contentType === 'products' ? 'Search products...' : 'Search...'}
+                value={this.query}
+                onInput={this.handleInput}
+                onFocus={() => {
+                  // Only open if we have content to show
+                  if (this.hasSearched || (this.placeholdersEnabled && this.placeholderItems && this.placeholderItems.length > 0)) {
+                    this.isOpen = true;
+                  }
+                }}
+                aria-label="Search"
+                style={{
+                  fontFamily: this.uiStyles.font_family || 'inherit',
+                  fontSize: this.uiStyles.font_size || '16px',
+                  color: this.uiStyles.text_color || '#333333',
+                  backgroundColor: this.uiStyles.background_color || '#ffffff',
+                  height: this.uiStyles.input_height || '45px',
+                  border: `${this.uiStyles.border_width || '1px'} solid ${this.uiStyles.border_color || '#dddddd'}`,
+                  borderRadius: this.uiStyles.border_radius || '4px',
+                }}
+              />
+              <button
+                class="search-button"
+                onClick={() => this.performSearch()}
+                style={{
+                  backgroundColor: this.uiStyles.button_bg || '#0073aa',
+                  color: this.uiStyles.button_text_color || '#ffffff',
+                  borderRadius: this.uiStyles.border_radius || '4px',
+                }}
+              >
+                Search
+              </button>
+            </div>
+            
+            {/* Search controls row */}
+            <div class="search-controls-row">
+            </div>
           </div>
+
+          {/* Search suggestions */}
+          {this.renderSuggestions()}
 
           {/* Results or placeholders below the search bar - only show if there's content */}
           {this.isOpen && (this.isLoading || this.hasSearched || (this.placeholdersEnabled && this.placeholderItems && this.placeholderItems.length > 0)) && (
@@ -660,31 +917,39 @@ export class LumenSearch {
                   {this.hasSearched && (
                     <div>
                       {this.results.length > 0 ? (
-                        <div class="search-results-list">
-                          <div class="search-results-count">
-                            {totalResultCount} result{totalResultCount !== 1 ? 's' : ''} found
-                          </div>
-                          {this.results.map(result => (
-                            <div class="result-group">
-                              {result.metadata.matchingBlocks.map(block => (
-                                <search-result
-                                  resultId={block.blockId}
-                                  resultTitle={result.title}
-                                  resultSnippet={cleanTextContent(block.content)}
-                                  resultUrl={result.url}
-                                  resultType={result.type || 'post'}
-                                  similarityScore={block.score}
-                                  // Product-specific props (will be undefined for posts)
-                                  productPrice={result.productData?.price}
-                                  productImage={result.productData?.image}
-                                  productRating={result.productData?.rating}
-                                  productInStock={result.productData?.inStock}
-                                  productCategory={result.productData?.category}
-                                  productBrand={result.productData?.brand}
-                                ></search-result>
+                        <div class={`search-results-${this.enableFacets && this.contentType === 'products' ? 'with-facets' : 'no-facets'}`}>
+                          {/* Facet filters sidebar - only for products */}
+                          {this.enableFacets && this.contentType === 'products' && this.renderFacetFilters()}
+                          
+                          {/* Main results */}
+                          <div class="search-results-main">
+                            <div class="search-results-count">
+                              {totalResultCount} result{totalResultCount !== 1 ? 's' : ''} found
+                            </div>
+                            <div class="search-results-list">
+                              {this.results.map(result => (
+                                <div class="result-group">
+                                  {result.metadata.matchingBlocks.map(block => (
+                                    <search-result
+                                      resultId={block.blockId}
+                                      resultTitle={result.title}
+                                      resultSnippet={cleanTextContent(block.content)}
+                                      resultUrl={result.url}
+                                      resultType={result.type || 'post'}
+                                      similarityScore={block.score}
+                                      // Product-specific props (will be undefined for posts)
+                                      productPrice={result.productData?.price}
+                                      productImage={result.productData?.image}
+                                      productRating={result.productData?.rating}
+                                      productInStock={result.productData?.inStock}
+                                      productCategory={result.productData?.category}
+                                      productBrand={result.productData?.brand}
+                                    ></search-result>
+                                  ))}
+                                </div>
                               ))}
                             </div>
-                          ))}
+                          </div>
                         </div>
                       ) : (
                         <div class="search-results-empty">No results found. Try a different search term.</div>
@@ -758,7 +1023,7 @@ export class LumenSearch {
                     ref={el => (this.inputRef = el as HTMLInputElement)}
                     type="text"
                     class="search-modal-input"
-                    placeholder="Search..."
+                    placeholder={this.contentType === 'products' ? 'Search products...' : 'Search...'}
                     value={this.query}
                     onInput={this.handleInput}
                     aria-label="Search"
@@ -787,6 +1052,13 @@ export class LumenSearch {
                     </svg>
                   </button>
                 </div>
+                
+                {/* Search controls for modal */}
+                <div class="search-controls-row modal">
+                    </div>
+                
+                {/* Search suggestions for modal */}
+                {this.renderSuggestions()}
               </div>
 
               <div class="search-modal-body" style={{ maxHeight: this.uiStyles.results_max_height || '400px' }}>
@@ -808,32 +1080,40 @@ export class LumenSearch {
                     {this.hasSearched && (
                       <div>
                         {this.results.length > 0 ? (
-                          <div class="search-results-list">
-                            <div class="search-results-count">
-                              {totalResultCount} result{totalResultCount !== 1 ? 's' : ''} found
-                            </div>
-                            {/* Render each search result and its matching blocks */}
-                            {this.results.map(result => (
-                              <div class="result-group">
-                                {result.metadata.matchingBlocks.map(block => (
-                                  <search-result
-                                    resultId={block.blockId}
-                                    resultTitle={result.title}
-                                    resultSnippet={cleanTextContent(block.content)}
-                                    resultUrl={result.url}
-                                    resultType={result.type || 'post'}
-                                    similarityScore={block.score}
-                                    // Product-specific props (will be undefined for posts)
-                                    productPrice={result.productData?.price}
-                                    productImage={result.productData?.image}
-                                    productRating={result.productData?.rating}
-                                    productInStock={result.productData?.inStock}
-                                    productCategory={result.productData?.category}
-                                    productBrand={result.productData?.brand}
-                                  ></search-result>
+                          <div class={`search-results-${this.enableFacets && this.contentType === 'products' ? 'with-facets' : 'no-facets'} modal`}>
+                            {/* Facet filters sidebar for modal - only for products */}
+                            {this.enableFacets && this.contentType === 'products' && this.renderFacetFilters()}
+                            
+                            {/* Main results for modal */}
+                            <div class="search-results-main">
+                              <div class="search-results-count">
+                                {totalResultCount} result{totalResultCount !== 1 ? 's' : ''} found
+                              </div>
+                              <div class="search-results-list">
+                                {/* Render each search result and its matching blocks */}
+                                {this.results.map(result => (
+                                  <div class="result-group">
+                                    {result.metadata.matchingBlocks.map(block => (
+                                      <search-result
+                                        resultId={block.blockId}
+                                        resultTitle={result.title}
+                                        resultSnippet={cleanTextContent(block.content)}
+                                        resultUrl={result.url}
+                                        resultType={result.type || 'post'}
+                                        similarityScore={block.score}
+                                        // Product-specific props (will be undefined for posts)
+                                        productPrice={result.productData?.price}
+                                        productImage={result.productData?.image}
+                                        productRating={result.productData?.rating}
+                                        productInStock={result.productData?.inStock}
+                                        productCategory={result.productData?.category}
+                                        productBrand={result.productData?.brand}
+                                      ></search-result>
+                                    ))}
+                                  </div>
                                 ))}
                               </div>
-                            ))}
+                            </div>
                           </div>
                         ) : (
                           <div class="search-results-empty">No results found. Try a different search term.</div>

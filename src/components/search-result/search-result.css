@@ -18,12 +18,21 @@
   background-color: #f0f0f0;
 }
 
+.result-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  margin-bottom: 8px;
+}
+
 .title {
-  margin: 0 0 8px 0;
+  margin: 0;
   font-size: 16px;
   font-weight: 600;
   color: #333;
   font-family: 'IBM Plex Sans', sans-serif;
+  flex: 1;
+  margin-right: 12px;
 }
 
 .snippet {
@@ -32,6 +41,24 @@
   color: #000000;
   line-height: 1.5;
   font-family: 'IBM Plex Sans', sans-serif;
+}
+
+.result-meta {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+.similarity-score {
+  background: #e8f4fd;
+  color: #0066cc;
+  padding: 4px 8px;
+  border-radius: 12px;
+  font-size: 12px;
+  font-weight: 500;
+  font-family: 'IBM Plex Sans', sans-serif;
+  white-space: nowrap;
 }
 
 /* Product-specific styles */

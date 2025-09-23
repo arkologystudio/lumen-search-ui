@@ -61,7 +61,7 @@ export class SearchResult {
 
   renderPostResult = () => {
     const snippet = this.extractReadableSnippet(this.resultSnippet);
-    const truncatedSnippet = snippet.length > 100 ? `${snippet.slice(0, 100)}...` : snippet;
+    const truncatedSnippet = snippet.length > 200 ? `${snippet.slice(0, 200)}...` : snippet;
     
     return (
       <div
@@ -70,13 +70,15 @@ export class SearchResult {
         style={{ cursor: this.resultUrl ? 'pointer' : 'default' }}
         title={this.resultUrl ? `Open in new tab: ${this.resultUrl}` : ''}
       >
-        <h4 class="title">{this.resultTitle}</h4>
-        <p class="snippet">{truncatedSnippet}</p>
-        {this.similarityScore > 0 && (
+        <div class="result-header">
+          <h4 class="title">{this.resultTitle}</h4>
           <div class="result-meta">
-            <span class="similarity-score">Match: {Math.round(this.similarityScore * 100)}%</span>
+            <span class="similarity-score">
+              {this.similarityScore > 0 ? `${Math.round(this.similarityScore * 100)}%` : 'N/A'}
+            </span>
           </div>
-        )}
+        </div>
+        <p class="snippet">{truncatedSnippet}</p>
       </div>
     );
   };
