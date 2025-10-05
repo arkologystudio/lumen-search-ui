@@ -21,17 +21,34 @@ export class SearchResult {
   @Prop() productBrand: string = '';
   @Prop() similarityScore: number = 0;
 
-  extractReadableSnippet = (snippet: string) => {
+  extractReadableSnippet = (snippet: string): string => {
     if (!snippet) return '';
 
-    // Match the first content between <p> tags
-    const match = snippet.match(/<p>(.*?)<\/p>/);
+    // Remove HTML tags but preserve highlights if they exist
+    let cleanSnippet = snippet
+      .replace(/<(?!\/?(mark|strong|em)\b)[^>]*>/gi, ' ') // Remove all HTML except mark, strong, em
+      .replace(/\s+/g, ' ') // Normalize whitespace
+      .trim();
 
-    if (!match) return snippet; // Return original if no <p> tags found
+    // If we still have a very long snippet, try to find the most relevant part
+    if (cleanSnippet.length > 300) {
+      // Look for highlighted content (marked sections)
+      const markMatch = cleanSnippet.match(/<mark[^>]*>([^<]+)<\/mark>/i);
+      if (markMatch) {
+        // Extract context around the highlighted term
+        const markIndex = cleanSnippet.indexOf(markMatch[0]);
+        const contextStart = Math.max(0, markIndex - 100);
+        const contextEnd = Math.min(cleanSnippet.length, markIndex + markMatch[0].length + 100);
+        cleanSnippet = cleanSnippet.substring(contextStart, contextEnd);
+        if (contextStart > 0) cleanSnippet = '...' + cleanSnippet;
+        if (contextEnd < snippet.length) cleanSnippet = cleanSnippet + '...';
+      } else {
+        // No highlights, just take the first 300 characters
+        cleanSnippet = cleanSnippet.substring(0, 300) + '...';
+      }
+    }
 
-    // Extract just the text content from the first paragraph
-    // and remove any other HTML tags that might be inside
-    return match[1].replace(/<[^>]*>/g, '');
+    return cleanSnippet;
   };
 
   handleClick = () => {
@@ -61,7 +78,8 @@ export class SearchResult {
 
   renderPostResult = () => {
     const snippet = this.extractReadableSnippet(this.resultSnippet);
-    const truncatedSnippet = snippet.length > 200 ? `${snippet.slice(0, 200)}...` : snippet;
+    const scorePercentage = Math.round(this.similarityScore * 1000) / 10;
+    const scoreRange = scorePercentage >= 70 ? 'high' : scorePercentage >= 40 ? 'medium' : 'low';
     
     return (
       <div
@@ -73,12 +91,19 @@ export class SearchResult {
         <div class="result-header">
           <h4 class="title">{this.resultTitle}</h4>
           <div class="result-meta">
-            <span class="similarity-score">
-              {this.similarityScore > 0 ? `${Math.round(this.similarityScore * 100)}%` : 'N/A'}
+            <span 
+              class="similarity-score"
+              data-score={this.similarityScore === 0 ? '0' : ''}
+              data-score-range={this.similarityScore > 0 ? scoreRange : ''}
+            >
+              {this.similarityScore > 0 ? `${scorePercentage}%` : 
+               this.similarityScore === 0 ? '0%' : 'N/A'}
             </span>
           </div>
         </div>
-        <p class="snippet">{truncatedSnippet}</p>
+        {snippet && (
+          <div class="snippet" innerHTML={snippet}></div>
+        )}
       </div>
     );
   };
@@ -108,12 +133,10 @@ export class SearchResult {
             )}
             
             {this.resultSnippet && (
-              <p class="snippet">
-                {(() => {
-                  const snippet = this.extractReadableSnippet(this.resultSnippet);
-                  return snippet.length > 80 ? `${snippet.slice(0, 80)}...` : snippet;
-                })()}
-              </p>
+              <div class="snippet" innerHTML={(() => {
+                const snippet = this.extractReadableSnippet(this.resultSnippet);
+                return snippet.length > 80 ? `${snippet.slice(0, 80)}...` : snippet;
+              })()}></div>
             )}
             
             <div class="product-info">
@@ -128,9 +151,16 @@ export class SearchResult {
               </span>
             </div>
             
-            {this.similarityScore > 0 && (
+            {(this.similarityScore > 0 || this.similarityScore === 0) && (
               <div class="result-meta">
-                <span class="similarity-score">Match: {Math.round(this.similarityScore * 100)}%</span>
+                <span 
+                  class="similarity-score"
+                  data-score={this.similarityScore === 0 ? '0' : ''}
+                  data-score-range={this.similarityScore > 0 ? (Math.round(this.similarityScore * 100) >= 70 ? 'high' : Math.round(this.similarityScore * 100) >= 40 ? 'medium' : 'low') : ''}
+                >
+                  Match: {this.similarityScore > 0 ? `${Math.round(this.similarityScore * 100)}%` : 
+                          this.similarityScore === 0 ? '0%' : 'N/A'}
+                </span>
               </div>
             )}
           </div>

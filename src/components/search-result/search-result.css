@@ -23,6 +23,7 @@
   justify-content: space-between;
   align-items: flex-start;
   margin-bottom: 8px;
+  gap: 12px;
 }
 
 .title {
@@ -43,6 +44,27 @@
   font-family: 'IBM Plex Sans', sans-serif;
 }
 
+/* Style for highlighted terms in snippets */
+.snippet mark {
+  background-color: #fff3cd;
+  color: #856404;
+  padding: 1px 2px;
+  border-radius: 2px;
+  font-weight: 500;
+}
+
+/* Style for strong/bold terms in snippets */
+.snippet strong {
+  font-weight: 600;
+  color: #333;
+}
+
+/* Style for emphasized terms in snippets */
+.snippet em {
+  font-style: italic;
+  color: #555;
+}
+
 .result-meta {
   display: flex;
   align-items: center;
@@ -59,6 +81,32 @@
   font-weight: 500;
   font-family: 'IBM Plex Sans', sans-serif;
   white-space: nowrap;
+  min-width: 35px;
+  text-align: center;
+}
+
+/* Different styling for zero scores */
+.similarity-score[data-score="0"] {
+  background: #f8f9fa;
+  color: #6c757d;
+}
+
+/* Different styling for high scores */
+.similarity-score[data-score-range="high"] {
+  background: #d4edda;
+  color: #155724;
+}
+
+/* Different styling for medium scores */
+.similarity-score[data-score-range="medium"] {
+  background: #fff3cd;
+  color: #856404;
+}
+
+/* Different styling for low scores */
+.similarity-score[data-score-range="low"] {
+  background: #f8d7da;
+  color: #721c24;
 }
 
 /* Product-specific styles */

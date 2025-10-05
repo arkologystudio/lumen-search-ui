@@ -1,5 +1,15 @@
 import { Component, h, State, Listen, Prop } from '@stencil/core';
 
+// Currency settings interface
+interface CurrencySettings {
+  code: string;
+  symbol: string;
+  position: 'left' | 'right' | 'left_space' | 'right_space';
+  thousand_sep: string;
+  decimal_sep: string;
+  decimals: number;
+}
+
 // Define a type for WordPress global settings
 interface WindowWithWordPressSettings extends Window {
   LumenSearchSettings?: {
@@ -28,6 +38,8 @@ interface WindowWithWordPressSettings extends Window {
       categories: string[];
       price_range: { min: number; max: number };
     };
+    // Currency settings
+    currency?: CurrencySettings;
   };
 }
 
@@ -66,7 +78,7 @@ interface SearchResult {
 interface EmbeddingSearchResponse {
   success: boolean;
   results: Array<{
-    postId?: string; // Optional for backward compatibility
+    postId?: string | number; // Optional for backward compatibility
     postTitle?: string;
     postUrl?: string;
     // Product fields (when searching products)
@@ -87,7 +99,14 @@ interface EmbeddingSearchResponse {
     totalChunks?: number;
     similarity?: number; // Product search uses similarity score
     score?: number; // Alternative score field
-    // For knowledge posts with chunks
+    // For knowledge posts with chunks (new format from lighthouse-api)
+    matchingChunks?: Array<{
+      chunkId: string;
+      chunkIndex: number;
+      content: string;
+      score: number;
+    }>;
+    // Legacy chunks format for backward compatibility
     chunks?: Array<{
       chunkId: string;
       chunkIndex: number;
@@ -135,6 +154,45 @@ const getWordPressRestUrl = (): string => {
   const fallbackUrl = `${currentUrl}/wp-json/lumen-search/v1`;
   console.log('Using fallback WordPress REST URL: ', fallbackUrl);
   return fallbackUrl;
+};
+
+/**
+ * Format a price according to currency settings
+ */
+const formatPrice = (amount: number | string, currency?: CurrencySettings): string => {
+  // Parse amount to number
+  const numAmount = typeof amount === 'string' ? parseFloat(amount) : amount;
+
+  if (isNaN(numAmount)) return '';
+
+  // Default currency settings (USD)
+  const settings = currency || {
+    code: 'USD',
+    symbol: '$',
+    position: 'left',
+    thousand_sep: ',',
+    decimal_sep: '.',
+    decimals: 2,
+  };
+
+  // Format number with separators
+  const parts = numAmount.toFixed(settings.decimals).split('.');
+  parts[0] = parts[0].replace(/\B(?=(\d{3})+(?!\d))/g, settings.thousand_sep);
+  const formattedNumber = parts.join(settings.decimal_sep);
+
+  // Apply currency symbol based on position
+  switch (settings.position) {
+    case 'left':
+      return `${settings.symbol}${formattedNumber}`;
+    case 'right':
+      return `${formattedNumber}${settings.symbol}`;
+    case 'left_space':
+      return `${settings.symbol} ${formattedNumber}`;
+    case 'right_space':
+      return `${formattedNumber} ${settings.symbol}`;
+    default:
+      return `${settings.symbol}${formattedNumber}`;
+  }
 };
 
 /**
@@ -251,6 +309,10 @@ export class LumenSearch {
   @State() activeFacets: any = {};
   @State() suggestions: string[] = [];
   @State() showSuggestions: boolean = false;
+  @State() currency: CurrencySettings | null = null;
+
+  // Store unfiltered results for client-side filtering
+  private unfilteredResults: SearchResult[] = [];
 
   /**
    * We'll store a numeric ID for the debounce timer so we can clear it.
@@ -284,9 +346,12 @@ export class LumenSearch {
       if (win.LumenSearchSettings.content_type === 'products' && typeof win.LumenSearchSettings.enable_faceted_search === 'boolean') {
         this.enableFacets = win.LumenSearchSettings.enable_faceted_search;
       }
-      if (win.LumenSearchSettings.available_facets) {
-        this.availableFacets = win.LumenSearchSettings.available_facets;
+      // Load currency settings
+      if (win.LumenSearchSettings.currency) {
+        this.currency = win.LumenSearchSettings.currency;
       }
+      // DON'T overwrite availableFacets from window settings
+      // They come from search API responses, not from initial page load settings
     }
   }
 
@@ -444,26 +509,28 @@ export class LumenSearch {
           },
         };
       } else {
-        // Handle knowledge post results (backward compatibility)
+        // Handle knowledge post results (with improved chunk handling)
+        const chunks = result.matchingChunks || result.chunks || [];
+        
         return {
-          id: result.postId || result.id || '',
+          id: String(result.postId || result.id || ''),
           title: result.postTitle || result.title || '',
-          content: '', // Content will be filled from chunks
+          content: chunks.length > 0 ? chunks[0].content : (result.content || ''), // Use first chunk content or fallback
           url: result.postUrl || result.url || '',
           type: 'post' as const,
           metadata: {
-            matchingBlocks: result.chunks
-              ? result.chunks.map(chunk => ({
-                  blockId: chunk.chunkId,
+            matchingBlocks: chunks.length > 0
+              ? chunks.map(chunk => ({
+                  blockId: chunk.chunkId || String(chunk.chunkIndex || 0),
                   content: chunk.content,
                   score: chunk.score,
                   url: result.postUrl || result.url || '',
                 }))
               : [
                   {
-                    blockId: result.id || result.postId || '',
+                    blockId: String(result.id || result.postId || ''),
                     content: result.content || '',
-                    score: result.similarity || result.score || 0,
+                    score: result.maxScore || result.similarity || result.score || 0,
                     url: result.postUrl || result.url || '',
                   },
                 ],
@@ -498,12 +565,22 @@ export class LumenSearch {
       
       const win = window as WindowWithWordPressSettings;
       
-      // Simple search payload
-      const searchPayload = {
+      // Build search payload with facet filters
+      const searchPayload: any = {
         query: this.query,
         limit: this.topK || win.LumenSearchSettings?.topK || 10,
         content_type: this.contentType || 'posts'
       };
+      
+      // Add active facet filters to the payload if any are selected
+      if (Object.keys(this.activeFacets).length > 0) {
+        searchPayload.filters = this.activeFacets;
+      }
+      
+      // Include facets request for product searches
+      if (this.contentType === 'products' && this.enableFacets) {
+        searchPayload.includeFacets = true;
+      }
 
       console.log('Performing secure search on endpoint: ', searchEndpoint);
       console.log('Search payload: ', searchPayload);
@@ -539,13 +616,20 @@ export class LumenSearch {
       }
 
       // Convert embedding response directly to SearchResult format
-      this.results = this.convertEmbeddingResponseToSearchResults(embeddingData);
+      const convertedResults = this.convertEmbeddingResponseToSearchResults(embeddingData);
+
+      // Store unfiltered results for client-side filtering
+      this.unfilteredResults = convertedResults;
+      this.results = convertedResults;
+
       console.log('Converted results:', this.results);
 
-      // Update available facets if this is a faceted search
-      if (embeddingData.facets && this.enableFacets) {
-        this.availableFacets = embeddingData.facets;
-        console.log('Updated facets:', this.availableFacets);
+      // Generate facets client-side from results
+      if (this.enableFacets) {
+        console.log('Generating facets client-side from', convertedResults.length, 'results');
+        this.generateFacetsFromResults();
+      } else {
+        this.availableFacets = {};
       }
 
       this.hasSearched = true;
@@ -589,29 +673,362 @@ export class LumenSearch {
   };
 
 
+  // Removed normalizeFacetData - WordPress REST API now handles facet normalization
+  // Facets are guaranteed to arrive in the correct format (plural keys)
+
   /**
-   * Handle facet filter changes
+   * Format price range text with proper currency
+   * Converts "$25 - $50" to "R25 - R50" (or whatever currency is set)
+   */
+  private formatPriceRange = (rangeText: string): string => {
+    if (!this.currency) return rangeText; // No currency settings, return as-is
+
+    // Match closed range: "$25 - $50"
+    const closedMatch = rangeText.match(/\$(\d+(?:,\d{3})*(?:\.\d+)?)\s*-\s*\$(\d+(?:,\d{3})*(?:\.\d+)?)/);
+    if (closedMatch) {
+      const min = parseFloat(closedMatch[1].replace(/,/g, ''));
+      const max = parseFloat(closedMatch[2].replace(/,/g, ''));
+      return `${formatPrice(min, this.currency)} - ${formatPrice(max, this.currency)}`;
+    }
+
+    // Match open-ended range: "$1000+"
+    const openMatch = rangeText.match(/\$(\d+(?:,\d{3})*(?:\.\d+)?)\+/);
+    if (openMatch) {
+      const min = parseFloat(openMatch[1].replace(/,/g, ''));
+      return `${formatPrice(min, this.currency)}+`;
+    }
+
+    // If no match, return original
+    return rangeText;
+  };
+
+  /**
+   * Parse and format product price from API response
+   * Handles prices that may come with HTML tags or currency symbols
+   */
+  private parseAndFormatPrice = (priceString: string): string => {
+    if (!priceString || !this.currency) {
+      return priceString || '';
+    }
+
+    // Strip HTML tags and any non-numeric characters except decimal point and comma
+    const cleanPrice = priceString.replace(/<[^>]*>/g, '').replace(/[^\d.,]/g, '');
+
+    // Parse the price (handle both comma and period as decimal separator)
+    const price = parseFloat(cleanPrice.replace(/,/g, ''));
+
+    if (isNaN(price)) {
+      return priceString; // Return original if parsing fails
+    }
+
+    return formatPrice(price, this.currency);
+  };
+
+  /**
+   * Generate facets client-side from search results
+   * Analyzes results to create facet buckets with counts
+   * @param results - The results to generate facets from (defaults to current filtered results)
+   */
+  private generateFacetsFromResults = (results?: SearchResult[]): void => {
+    // Use provided results, or fall back to current filtered results
+    const sourceResults = results || this.results || this.unfilteredResults || [];
+
+    if (!sourceResults || sourceResults.length === 0) {
+      this.availableFacets = {};
+      return;
+    }
+
+    console.log('Generating facets from', sourceResults.length, 'results');
+
+    const facets: any = {};
+
+    // Get enabled facets from window settings
+    const win = window as any;
+    const enabledFacets = win.LumenSearchSettings?.enabled_facets || {};
+
+    console.log('Enabled facets:', enabledFacets);
+
+    // Process each result to build facet counts
+    sourceResults.forEach(result => {
+      const attrs = result.productData;
+      if (!attrs) return;
+
+      // Process each enabled facet
+      Object.keys(enabledFacets).forEach(facetSlug => {
+        const facetInfo = enabledFacets[facetSlug];
+
+        // Skip if no label (invalid facet)
+        if (!facetInfo || !facetInfo.label) return;
+
+        // Handle different facet types
+        if (facetSlug === 'price_range') {
+          // Price ranges - create buckets (use singular key to match filtering)
+          if (!facets.price_range) {
+            facets.price_range = [];
+          }
+
+          const price = parseFloat(attrs.price || '0');
+          if (price > 0) {
+            // Determine which price bucket this product falls into
+            if (price < 25) {
+              this.incrementFacetCount(facets.price_range, '$0 - $25', true);
+            } else if (price < 50) {
+              this.incrementFacetCount(facets.price_range, '$25 - $50', true);
+            } else if (price < 100) {
+              this.incrementFacetCount(facets.price_range, '$50 - $100', true);
+            } else if (price < 250) {
+              this.incrementFacetCount(facets.price_range, '$100 - $250', true);
+            } else if (price < 500) {
+              this.incrementFacetCount(facets.price_range, '$250 - $500', true);
+            } else if (price < 1000) {
+              this.incrementFacetCount(facets.price_range, '$500 - $1,000', true);
+            } else {
+              this.incrementFacetCount(facets.price_range, '$1,000+', true);
+            }
+          }
+        } else if (facetSlug === 'stock_status') {
+          // Stock status (use singular key to match filtering)
+          if (!facets.availability) {
+            facets.availability = [];
+          }
+
+          const stockStatus = attrs.inStock ? 'in_stock' : 'out_of_stock';
+          this.incrementFacetCount(facets.availability, stockStatus);
+        } else if (facetSlug === 'rating') {
+          // Ratings - create buckets for 4+, 3+, 2+, 1+ (use singular key to match filtering)
+          if (!facets.rating) {
+            facets.rating = [];
+          }
+
+          const rating = parseFloat(String(attrs.rating || 0));
+          if (rating >= 4) {
+            this.incrementFacetCount(facets.rating, '4');
+          }
+          if (rating >= 3) {
+            this.incrementFacetCount(facets.rating, '3');
+          }
+          if (rating >= 2) {
+            this.incrementFacetCount(facets.rating, '2');
+          }
+          if (rating >= 1) {
+            this.incrementFacetCount(facets.rating, '1');
+          }
+        } else if (facetSlug === 'product_cat') {
+          // Categories (use singular key to match filtering)
+          if (!facets.category) {
+            facets.category = [];
+          }
+
+          const category = attrs.category;
+          if (category) {
+            if (Array.isArray(category)) {
+              category.forEach(cat => this.incrementFacetCount(facets.category, cat));
+            } else {
+              this.incrementFacetCount(facets.category, category);
+            }
+          }
+        } else if (facetSlug === 'product_brand') {
+          // Brands (use singular key to match filtering)
+          if (!facets.brand) {
+            facets.brand = [];
+          }
+
+          const brand = attrs.brand;
+          if (brand) {
+            if (Array.isArray(brand)) {
+              brand.forEach(b => this.incrementFacetCount(facets.brand, b));
+            } else {
+              this.incrementFacetCount(facets.brand, brand);
+            }
+          }
+        } else {
+          // Custom attributes (pa_color, pa_size, etc.)
+          // Map to a generic facet collection
+          const attributeKey = facetSlug.replace('pa_', ''); // Strip pa_ prefix for display
+
+          if (!facets[attributeKey]) {
+            facets[attributeKey] = [];
+          }
+
+          // Try to get attribute value from product data
+          const attrValue = attrs[facetSlug] || attrs[attributeKey];
+          if (attrValue) {
+            if (Array.isArray(attrValue)) {
+              attrValue.forEach(val => this.incrementFacetCount(facets[attributeKey], val));
+            } else {
+              this.incrementFacetCount(facets[attributeKey], attrValue);
+            }
+          }
+        }
+      });
+    });
+
+    // Sort facets by count (descending)
+    Object.keys(facets).forEach(key => {
+      facets[key].sort((a: any, b: any) => b.count - a.count);
+    });
+
+    console.log('Generated facets:', facets);
+
+    this.availableFacets = facets;
+  };
+
+  /**
+   * Helper to increment count for a facet value
+   */
+  private incrementFacetCount = (facetArray: any[], value: string, isRange: boolean = false): void => {
+    const existing = facetArray.find((item: any) => item.value === value || item.range === value);
+
+    if (existing) {
+      existing.count++;
+    } else {
+      // Use explicit isRange flag instead of string detection
+      if (isRange) {
+        facetArray.push({ range: value, count: 1 });
+      } else {
+        facetArray.push({ value: value, count: 1 });
+      }
+    }
+  };
+
+  /**
+   * Handle facet filter changes - CLIENT-SIDE filtering for instant results
    */
   private handleFacetChange = (facetType: string, value: string, checked: boolean): void => {
-    if (!this.activeFacets[facetType]) {
-      this.activeFacets[facetType] = [];
+    // Create a new copy of activeFacets to trigger re-render
+    const newActiveFacets = { ...this.activeFacets };
+
+    if (!newActiveFacets[facetType]) {
+      newActiveFacets[facetType] = [];
     }
-    
+
     if (checked) {
-      if (!this.activeFacets[facetType].includes(value)) {
-        this.activeFacets[facetType].push(value);
+      if (!newActiveFacets[facetType].includes(value)) {
+        newActiveFacets[facetType] = [...newActiveFacets[facetType], value];
       }
     } else {
-      const index = this.activeFacets[facetType].indexOf(value);
-      if (index > -1) {
-        this.activeFacets[facetType].splice(index, 1);
+      newActiveFacets[facetType] = newActiveFacets[facetType].filter(v => v !== value);
+    }
+
+    // Remove empty arrays
+    if (newActiveFacets[facetType].length === 0) {
+      delete newActiveFacets[facetType];
+    }
+
+    this.activeFacets = newActiveFacets;
+    console.log('Updated active facets:', this.activeFacets);
+
+    // CLIENT-SIDE FILTERING - instant, no API call
+    this.applyClientSideFilters();
+  };
+
+  /**
+   * Apply filters client-side to the unfiltered results
+   * Much faster than re-querying the API
+   * Also regenerates facet counts based on filtered results
+   */
+  private applyClientSideFilters = (): void => {
+    if (Object.keys(this.activeFacets).length === 0) {
+      // No filters active, show all results and regenerate facets from unfiltered results
+      this.results = this.unfilteredResults;
+      this.generateFacetsFromResults(this.unfilteredResults);
+      return;
+    }
+
+    console.log('Applying filters:', this.activeFacets);
+    console.log('Unfiltered results:', this.unfilteredResults.length);
+
+    // Filter results based on active facets
+    this.results = this.unfilteredResults.filter(result => {
+      // Check each active facet type
+      for (const [facetType, selectedValues] of Object.entries(this.activeFacets)) {
+        if (!selectedValues || (selectedValues as string[]).length === 0) continue;
+
+        const values = selectedValues as string[];
+
+        // Check product attributes
+        const attrs = (result as any).productData;
+        if (!attrs) {
+          console.log('Result has no productData:', result);
+          continue;
+        }
+
+        console.log(`Checking ${facetType} for product:`, result.title, attrs);
+
+        switch (facetType) {
+          case 'category':
+            if (!values.includes(attrs.category)) return false;
+            break;
+
+          case 'brand':
+            if (!values.includes(attrs.brand)) return false;
+            break;
+
+          case 'availability':
+            const stockStatus = attrs.inStock ? 'in_stock' : 'out_of_stock';
+            if (!values.includes(stockStatus)) return false;
+            break;
+
+          case 'price_range':
+            // Parse price ranges: "R25.00 - R50.00" or "R1,000.00+" (currency-agnostic)
+            let matchesPrice = false;
+            const price = parseFloat(attrs.price || '0');
+
+            console.log(`Checking price ${price} against ranges:`, values);
+
+            for (const range of values) {
+              // Handle closed range: "R25.00 - R50.00" (match any currency symbol)
+              const closedMatch = range.match(/([0-9,.]+)\s*-\s*([0-9,.]+)/);
+              if (closedMatch) {
+                const min = parseFloat(closedMatch[1].replace(/,/g, ''));
+                const max = parseFloat(closedMatch[2].replace(/,/g, ''));
+                if (price >= min && price <= max) {
+                  console.log(`Price ${price} matches range ${min}-${max}`);
+                  matchesPrice = true;
+                  break;
+                }
+              }
+
+              // Handle open-ended range: "R1,000.00+" (match any currency symbol)
+              const openMatch = range.match(/([0-9,.]+)\+/);
+              if (openMatch) {
+                const min = parseFloat(openMatch[1].replace(/,/g, ''));
+                if (price >= min) {
+                  console.log(`Price ${price} matches ${min}+`);
+                  matchesPrice = true;
+                  break;
+                }
+              }
+            }
+
+            if (!matchesPrice) {
+              console.log(`Price ${price} does not match any selected ranges`);
+              return false;
+            }
+            break;
+
+          case 'rating':
+            // Rating values like "4" means "4+ stars"
+            let matchesRating = false;
+            for (const ratingStr of values) {
+              const minRating = parseFloat(ratingStr);
+              if (attrs.rating >= minRating) {
+                matchesRating = true;
+                break;
+              }
+            }
+            if (!matchesRating) return false;
+            break;
+        }
       }
-    }
-    
-    // Re-trigger search with new filters
-    if (this.query.trim().length > 0) {
-      this.performSearch();
-    }
+
+      return true; // Passes all filters
+    });
+
+    console.log(`Filtered ${this.unfilteredResults.length} results down to ${this.results.length}`);
+
+    // Regenerate facets from the filtered results to show updated counts
+    this.generateFacetsFromResults(this.results);
   };
 
   /**
@@ -619,9 +1036,8 @@ export class LumenSearch {
    */
   private clearFacets = (): void => {
     this.activeFacets = {};
-    if (this.query.trim().length > 0) {
-      this.performSearch();
-    }
+    // Reset to unfiltered results
+    this.results = this.unfilteredResults;
   };
 
   /**
@@ -695,106 +1111,127 @@ export class LumenSearch {
    * Render faceted search filters
    */
   private renderFacetFilters() {
+    console.log('renderFacetFilters called:', {
+      enableFacets: this.enableFacets,
+      contentType: this.contentType,
+      availableFacets: this.availableFacets,
+      facetKeys: Object.keys(this.availableFacets || {}),
+      facetKeysLength: Object.keys(this.availableFacets || {}).length
+    });
+
     if (!this.enableFacets || this.contentType !== 'products') {
+      console.log('Facets disabled or wrong content type');
       return null;
     }
     
-    // Show facets even if no availableFacets yet, for better UX
-    if (!this.availableFacets || Object.keys(this.availableFacets).length === 0) {
-      return (
-        <div class="facet-filters">
-          <div class="facet-header">
-            <h4>Filter Results</h4>
-          </div>
-          <div class="facet-loading">
-            <p>Filters will appear after searching...</p>
-          </div>
-        </div>
-      );
+    // If no facets are configured in WordPress admin, don't show the facet section at all
+    const win = window as any;
+    const enabledFacets = win.LumenSearchSettings?.enabled_facets || {};
+    const hasFacetsConfigured = Object.keys(enabledFacets).length > 0;
+
+    if (!hasFacetsConfigured) {
+      console.log('No facets configured in WordPress admin');
+      return null; // Don't show facets section if admin hasn't enabled any
     }
 
-    const hasActiveFacets = Object.keys(this.activeFacets).some(key => 
+    // If no facets have been generated yet (empty search or no results), don't show anything
+    if (!this.availableFacets || Object.keys(this.availableFacets).length === 0) {
+      console.log('No available facets generated from results');
+      return null; // Don't show placeholder
+    }
+
+    const hasActiveFacets = Object.keys(this.activeFacets).some(key =>
       this.activeFacets[key] && this.activeFacets[key].length > 0
     );
 
+    // Horizontal chips layout - more compact and modern
     return (
-      <div class="facet-filters">
-        <div class="facet-header">
-          <h4>Filter Results</h4>
+      <div class="facet-filters-horizontal">
+        <div class="facet-header-horizontal">
+          <span class="filter-label">Filters:</span>
           {hasActiveFacets && (
-            <button class="clear-filters" onClick={this.clearFacets}>
-              Clear All
+            <button class="clear-filters-link" onClick={this.clearFacets}>
+              Clear all
             </button>
           )}
         </div>
 
-        {/* Brand filter */}
-        {this.availableFacets.brands && this.availableFacets.brands.length > 0 && (
-          <div class="facet-group">
-            <h5>Brand</h5>
-            {this.availableFacets.brands.slice(0, 5).map(brand => (
-              <label class="facet-option">
-                <input
-                  type="checkbox"
-                  checked={this.activeFacets.brand && this.activeFacets.brand.includes(brand.value)}
-                  onChange={(e) => this.handleFacetChange('brand', brand.value, (e.target as HTMLInputElement).checked)}
-                />
-                {brand.value} ({brand.count})
-              </label>
-            ))}
-          </div>
-        )}
+        <div class="facet-chips-container">
+          {/* Category chips */}
+          {this.availableFacets.category && this.availableFacets.category.length > 0 && (
+            <div class="facet-chip-group">
+              <span class="chip-group-label">Category:</span>
+              {this.availableFacets.category.slice(0, 3).map(category => (
+                <button
+                  class={`facet-chip ${this.activeFacets.category && this.activeFacets.category.includes(category.value) ? 'active' : ''}`}
+                  onClick={() => this.handleFacetChange('category', category.value, !(this.activeFacets.category && this.activeFacets.category.includes(category.value)))}
+                >
+                  {category.value} <span class="chip-count">({category.count})</span>
+                </button>
+              ))}
+            </div>
+          )}
 
-        {/* Category filter */}
-        {this.availableFacets.categories && this.availableFacets.categories.length > 0 && (
-          <div class="facet-group">
-            <h5>Category</h5>
-            {this.availableFacets.categories.slice(0, 5).map(category => (
-              <label class="facet-option">
-                <input
-                  type="checkbox"
-                  checked={this.activeFacets.category && this.activeFacets.category.includes(category.value)}
-                  onChange={(e) => this.handleFacetChange('category', category.value, (e.target as HTMLInputElement).checked)}
-                />
-                {category.value} ({category.count})
-              </label>
-            ))}
-          </div>
-        )}
+          {/* Price Range chips */}
+          {this.availableFacets.price_range && this.availableFacets.price_range.length > 0 && (
+            <div class="facet-chip-group">
+              <span class="chip-group-label">Price:</span>
+              {this.availableFacets.price_range.slice(0, 4).map(priceRange => (
+                <button
+                  class={`facet-chip ${this.activeFacets.price_range && this.activeFacets.price_range.includes(priceRange.range) ? 'active' : ''}`}
+                  onClick={() => this.handleFacetChange('price_range', priceRange.range, !(this.activeFacets.price_range && this.activeFacets.price_range.includes(priceRange.range)))}
+                >
+                  <span innerHTML={this.formatPriceRange(priceRange.range)}></span> <span class="chip-count">({priceRange.count})</span>
+                </button>
+              ))}
+            </div>
+          )}
 
-        {/* Availability filter */}
-        {this.availableFacets.availability && this.availableFacets.availability.length > 0 && (
-          <div class="facet-group">
-            <h5>Availability</h5>
-            {this.availableFacets.availability.map(availability => (
-              <label class="facet-option">
-                <input
-                  type="checkbox"
-                  checked={this.activeFacets.availability && this.activeFacets.availability.includes(availability.value)}
-                  onChange={(e) => this.handleFacetChange('availability', availability.value, (e.target as HTMLInputElement).checked)}
-                />
-                {availability.value} ({availability.count})
-              </label>
-            ))}
-          </div>
-        )}
+          {/* Availability chips */}
+          {this.availableFacets.availability && this.availableFacets.availability.length > 0 && (
+            <div class="facet-chip-group">
+              <span class="chip-group-label">Stock:</span>
+              {this.availableFacets.availability.map(availability => (
+                <button
+                  class={`facet-chip ${this.activeFacets.availability && this.activeFacets.availability.includes(availability.value) ? 'active' : ''}`}
+                  onClick={() => this.handleFacetChange('availability', availability.value, !(this.activeFacets.availability && this.activeFacets.availability.includes(availability.value)))}
+                >
+                  {availability.value} <span class="chip-count">({availability.count})</span>
+                </button>
+              ))}
+            </div>
+          )}
 
-        {/* Rating filter */}
-        {this.availableFacets.ratings && this.availableFacets.ratings.length > 0 && (
-          <div class="facet-group">
-            <h5>Rating</h5>
-            {this.availableFacets.ratings.map(rating => (
-              <label class="facet-option">
-                <input
-                  type="checkbox"
-                  checked={this.activeFacets.rating && this.activeFacets.rating.includes(rating.value.toString())}
-                  onChange={(e) => this.handleFacetChange('rating', rating.value.toString(), (e.target as HTMLInputElement).checked)}
-                />
-                {rating.value}+ Stars ({rating.count})
-              </label>
-            ))}
-          </div>
-        )}
+          {/* Rating chips */}
+          {this.availableFacets.rating && this.availableFacets.rating.length > 0 && (
+            <div class="facet-chip-group">
+              <span class="chip-group-label">Rating:</span>
+              {this.availableFacets.rating.map(rating => (
+                <button
+                  class={`facet-chip ${this.activeFacets.rating && this.activeFacets.rating.includes(rating.value.toString()) ? 'active' : ''}`}
+                  onClick={() => this.handleFacetChange('rating', rating.value.toString(), !(this.activeFacets.rating && this.activeFacets.rating.includes(rating.value.toString())))}
+                >
+                  {rating.value}+ ⭐ <span class="chip-count">({rating.count})</span>
+                </button>
+              ))}
+            </div>
+          )}
+
+          {/* Brand chips */}
+          {this.availableFacets.brand && this.availableFacets.brand.length > 0 && (
+            <div class="facet-chip-group">
+              <span class="chip-group-label">Brand:</span>
+              {this.availableFacets.brand.slice(0, 4).map(brand => (
+                <button
+                  class={`facet-chip ${this.activeFacets.brand && this.activeFacets.brand.includes(brand.value) ? 'active' : ''}`}
+                  onClick={() => this.handleFacetChange('brand', brand.value, !(this.activeFacets.brand && this.activeFacets.brand.includes(brand.value)))}
+                >
+                  {brand.value} <span class="chip-count">({brand.count})</span>
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
       </div>
     );
   }
@@ -880,10 +1317,6 @@ export class LumenSearch {
                 Search
               </button>
             </div>
-            
-            {/* Search controls row */}
-            <div class="search-controls-row">
-            </div>
           </div>
 
           {/* Search suggestions */}
@@ -917,12 +1350,12 @@ export class LumenSearch {
                   {this.hasSearched && (
                     <div>
                       {this.results.length > 0 ? (
-                        <div class={`search-results-${this.enableFacets && this.contentType === 'products' ? 'with-facets' : 'no-facets'}`}>
-                          {/* Facet filters sidebar - only for products */}
+                        <div class="search-results-container">
+                          {/* Facet filters horizontal - only for products */}
                           {this.enableFacets && this.contentType === 'products' && this.renderFacetFilters()}
-                          
+
                           {/* Main results */}
-                          <div class="search-results-main">
+                          <div class="search-results-list">
                             <div class="search-results-count">
                               {totalResultCount} result{totalResultCount !== 1 ? 's' : ''} found
                             </div>
@@ -938,7 +1371,7 @@ export class LumenSearch {
                                       resultType={result.type || 'post'}
                                       similarityScore={block.score}
                                       // Product-specific props (will be undefined for posts)
-                                      productPrice={result.productData?.price}
+                                      productPrice={this.parseAndFormatPrice(result.productData?.price || '')}
                                       productImage={result.productData?.image}
                                       productRating={result.productData?.rating}
                                       productInStock={result.productData?.inStock}
@@ -1052,11 +1485,7 @@ export class LumenSearch {
                     </svg>
                   </button>
                 </div>
-                
-                {/* Search controls for modal */}
-                <div class="search-controls-row modal">
-                    </div>
-                
+
                 {/* Search suggestions for modal */}
                 {this.renderSuggestions()}
               </div>
@@ -1080,12 +1509,12 @@ export class LumenSearch {
                     {this.hasSearched && (
                       <div>
                         {this.results.length > 0 ? (
-                          <div class={`search-results-${this.enableFacets && this.contentType === 'products' ? 'with-facets' : 'no-facets'} modal`}>
-                            {/* Facet filters sidebar for modal - only for products */}
+                          <div class="search-results-container modal">
+                            {/* Facet filters horizontal for modal - only for products */}
                             {this.enableFacets && this.contentType === 'products' && this.renderFacetFilters()}
-                            
+
                             {/* Main results for modal */}
-                            <div class="search-results-main">
+                            <div class="search-results-list">
                               <div class="search-results-count">
                                 {totalResultCount} result{totalResultCount !== 1 ? 's' : ''} found
                               </div>
@@ -1102,7 +1531,7 @@ export class LumenSearch {
                                         resultType={result.type || 'post'}
                                         similarityScore={block.score}
                                         // Product-specific props (will be undefined for posts)
-                                        productPrice={result.productData?.price}
+                                        productPrice={this.parseAndFormatPrice(result.productData?.price || '')}
                                         productImage={result.productData?.image}
                                         productRating={result.productData?.rating}
                                         productInStock={result.productData?.inStock}
