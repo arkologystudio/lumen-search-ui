@@ -153,12 +153,12 @@ export class SearchResult {
             
             {(this.similarityScore > 0 || this.similarityScore === 0) && (
               <div class="result-meta">
-                <span 
+                <span
                   class="similarity-score"
                   data-score={this.similarityScore === 0 ? '0' : ''}
-                  data-score-range={this.similarityScore > 0 ? (Math.round(this.similarityScore * 100) >= 70 ? 'high' : Math.round(this.similarityScore * 100) >= 40 ? 'medium' : 'low') : ''}
+                  data-score-range={this.similarityScore > 0 ? (Math.round(this.similarityScore * 1000) / 10 >= 70 ? 'high' : Math.round(this.similarityScore * 1000) / 10 >= 40 ? 'medium' : 'low') : ''}
                 >
-                  Match: {this.similarityScore > 0 ? `${Math.round(this.similarityScore * 100)}%` : 
+                  Match: {this.similarityScore > 0 ? `${Math.round(this.similarityScore * 1000) / 10}%` :
                           this.similarityScore === 0 ? '0%' : 'N/A'}
                 </span>
               </div>
